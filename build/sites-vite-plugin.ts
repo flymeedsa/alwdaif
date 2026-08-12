@@ -48,6 +48,13 @@ export function sites(): Plugin {
         "/* /index.html 200\n",
         "utf8",
       );
+
+      const appShell = resolve(root, "public", "index.html");
+      for (const route of ["admin/login", "admin/reset-password"]) {
+        const routeDirectory = resolve(clientDirectory, route);
+        await mkdir(routeDirectory, { recursive: true });
+        await cp(appShell, resolve(routeDirectory, "index.html"));
+      }
     },
   };
 }
