@@ -56,7 +56,36 @@ import { eq, and, gt, gte, desc, sql, isNull, count as drizzleCount } from "driz
 import { communityStorage, seedCommunityCategories, seedCommunityAdmin, seedCommunityRanks } from "../communityStorage";
 import { generateJobSummary, generateMarketForecast, analyzeJobMatchFromText, analyzeJobMatchFromImage, generateWeeklySummary } from "../ai";
 import mammoth from "mammoth";
-import { Expo, type ExpoPushMessage } from "expo-server-sdk";
+type ExpoPushMessage = {
+  to: string | string[];
+  title?: string;
+  body?: string;
+  data?: Record<string, unknown>;
+  sound?: "default" | null;
+};
+
+class Expo {
+  static isExpoPushToken(token: string): boolean {
+    return /^(ExponentPushToken|ExpoPushToken)\[[A-Za-z0-9_-]+\]$/.test(token);
+  }
+
+  chunkPushNotifications(messages: ExpoPushMessage[]): ExpoPushMessage[][] {
+    const chunks: ExpoPushMessage[][] = [];
+    for (let i = 0; i < messages.length; i += 100) chunks.push(messages.slice(i, i + 100));
+    return chunks;
+  }
+
+  async sendPushNotificationsAsync(messages: ExpoPushMessage[]) {
+    const response = await fetch("https://exp.host/--/api/v2/push/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(messages),
+    });
+    if (!response.ok) throw new Error(`Expo push request failed: ${response.status}`);
+    const payload = await response.json() as { data?: unknown[] };
+    return payload.data || [];
+  }
+}
 import { notifyJobPublished, notifyJobDeleted } from "../lib/googleIndexing";
 import { logger } from "../lib/logger";
 import { publishToTwitter, shouldAutoPublishJob, shouldAutoPublishBlog, getOrCreateSettings, buildJobTweet, buildBlogTweet, buildResultTweet, isTwitterConfigured } from "../lib/twitter";
