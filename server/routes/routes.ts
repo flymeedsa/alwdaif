@@ -10,7 +10,6 @@ import { sendContactEmail, sendPasswordResetEmail, sendWeeklySummaryEmailGmail }
 import crypto from "crypto";
 import multer from "multer";
 import path from "path";
-import fs from "fs/promises";
 import express from "express";
 import bcrypt from "bcryptjs";
 import rateLimit from "express-rate-limit";
@@ -198,23 +197,6 @@ function fixLogoUrl(logo: string | null | undefined): string | null {
 }
 
 export async function registerRoutes(httpServer: Server, app: Express): Promise<Server> {
-  // Ensure uploads directory exists
-  try {
-    await fs.mkdir("uploads", { recursive: true });
-  } catch (err) {
-    console.error("Failed to create uploads directory:", err);
-  }
-
-  const upload = multer({
-    storage: multer.diskStorage({
-      destination: "uploads/",
-      filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-        cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
-      },
-    }),
-  });
-
   const memoryUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
