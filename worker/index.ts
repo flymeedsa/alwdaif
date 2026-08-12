@@ -70,8 +70,9 @@ export default {
 
     if (isStaticRequest) {
       let asset = await env.ASSETS.fetch(request);
-      const servesAppShell = asset.status === 404 || pathname === "/";
-      if (asset.status === 404) {
+      const needsAppShell = asset.status === 404 || (asset.status >= 300 && asset.status < 400);
+      const servesAppShell = needsAppShell || pathname === "/";
+      if (needsAppShell) {
         const indexUrl = new URL("/index.html", request.url);
         asset = await env.ASSETS.fetch(new Request(indexUrl, request));
       }
