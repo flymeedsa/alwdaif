@@ -1,4 +1,4 @@
-import { access, cp, mkdir, rm } from "node:fs/promises";
+import { access, cp, mkdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 
@@ -40,6 +40,14 @@ export function sites(): Plugin {
           recursive: true,
         });
       }
+
+      const clientDirectory = resolve(root, "dist", "client");
+      await mkdir(clientDirectory, { recursive: true });
+      await writeFile(
+        resolve(clientDirectory, "_redirects"),
+        "/* /index.html 200\n",
+        "utf8",
+      );
     },
   };
 }
