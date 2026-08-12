@@ -1,0 +1,1 @@
+import{r}from"./vendor-router-BRCmCs3a.js";import{u as s}from"./SeoContext-BHjBTeG-.js";const o="إعلانات الوظائف";function c(t){const e=s();r.useEffect(()=>{if(!e?.title)return document.title=t||o,()=>{document.title=o}},[t,e])}export{c as u};
