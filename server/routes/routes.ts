@@ -120,18 +120,38 @@ const loginLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// In-memory admin token store (token -> { adminId, adminName, expires })
+// Keep legacy in-memory tokens readable during rolling deployments, but issue
+// stateless signed tokens so authentication survives Cloudflare isolate changes.
 const adminTokens = new Map<string, { adminId: number | null; adminName: string; expires: number }>();
 
 // Community tokens are now stored in the database (community_tokens table)
 
-function generateAdminToken(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-  let token = "";
-  for (let i = 0; i < 64; i++) {
-    token += chars[Math.floor(Math.random() * chars.length)];
+type AdminTokenData = { adminId: number | null; adminName: string; expires: number };
+
+function adminTokenSecret(): string {
+  return process.env.SESSION_SECRET || ADMIN_PASSWORD;
+}
+
+function issueAdminToken(data: AdminTokenData): string {
+  const payload = Buffer.from(JSON.stringify(data), "utf8").toString("base64url");
+  const signature = crypto.createHmac("sha256", adminTokenSecret()).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
+}
+
+function readAdminToken(token: string): AdminTokenData | null {
+  try {
+    const [payload, signature, extra] = token.split(".");
+    if (!payload || !signature || extra || !adminTokenSecret()) return adminTokens.get(token) || null;
+    const expected = crypto.createHmac("sha256", adminTokenSecret()).update(payload).digest("base64url");
+    const suppliedBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+    if (suppliedBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(suppliedBuffer, expectedBuffer)) return null;
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as AdminTokenData;
+    if (typeof data.expires !== "number" || data.expires <= Date.now()) return null;
+    return data;
+  } catch {
+    return adminTokens.get(token) || null;
   }
-  return token;
 }
 
 function generateCommunityToken(): string {
@@ -163,7 +183,7 @@ const isAdminSession: RequestHandler = (req, res, next) => {
     : null;
   if (token) {
     cleanExpiredTokens();
-    const data = adminTokens.get(token);
+    const data = readAdminToken(token);
     if (data && data.expires > Date.now()) {
       (req as any).adminTokenData = data;
       return next();
@@ -1089,9 +1109,7 @@ ${itemsXml}
     const TOKEN_TTL = 7 * 24 * 60 * 60 * 1000; // 1 week
 
     const issueToken = (adminId: number | null, adminName: string) => {
-      const token = generateAdminToken();
-      adminTokens.set(token, { adminId, adminName, expires: Date.now() + TOKEN_TTL });
-      return token;
+      return issueAdminToken({ adminId, adminName, expires: Date.now() + TOKEN_TTL });
     };
 
     const loginSuccess = (adminId: number | null, adminName: string) => {
@@ -1115,8 +1133,11 @@ ${itemsXml}
       }
     } catch (_) { /* fall through to env-var check */ }
 
-    // 2) Fallback: env-var super admin
-    if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+    // 2) Main admin credentials. Database settings take priority after the
+    // admin changes their email or password from the dashboard.
+    const configuredAdminEmail = (await storage.getSetting("ADMIN_EMAIL").catch(() => null))?.value || ADMIN_EMAIL;
+    const configuredAdminPassword = (await storage.getSetting("ADMIN_PASSWORD").catch(() => null))?.value || ADMIN_PASSWORD;
+    if (email === configuredAdminEmail && password === configuredAdminPassword) {
       return loginSuccess(null, "المشرف الرئيسي");
     }
 
@@ -1141,7 +1162,7 @@ ${itemsXml}
     const authHeader = req.headers["authorization"] || req.headers["x-admin-token"];
     const token = typeof authHeader === "string" ? authHeader.replace(/^Bearer\s+/i, "").trim() : null;
     if (token) {
-      const data = adminTokens.get(token);
+      const data = readAdminToken(token);
       if (data && data.expires > Date.now()) return res.json({ isAdmin: true });
     }
     return res.json({ isAdmin: false });
@@ -1157,7 +1178,7 @@ ${itemsXml}
         const authHeader = req.headers["authorization"] || req.headers["x-admin-token"];
         const token = typeof authHeader === "string" ? authHeader.replace(/^Bearer\s+/i, "").trim() : null;
         if (token) {
-          const data = adminTokens.get(token);
+          const data = readAdminToken(token);
           if (data && data.expires > Date.now()) resolvedId = data.adminId;
         }
       }
