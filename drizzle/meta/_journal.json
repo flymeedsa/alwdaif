@@ -8,6 +8,13 @@
       "when": 1786551031703,
       "tag": "0000_worthless_stellaris",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787013000000,
+      "tag": "0001_restore_demo_content",
+      "breakpoints": true
     }
   ]
 }

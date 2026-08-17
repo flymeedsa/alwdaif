@@ -525,7 +525,7 @@ export class DatabaseStorage implements IStorage {
         o.is_active AS "isActive",
         o.created_at AS "createdAt",
         o.updated_at AS "updatedAt",
-        COALESCE(fc.cnt, 0)::int AS "followerCount"
+        COALESCE(fc.cnt, 0) AS "followerCount"
       FROM organizations o
       LEFT JOIN (
         SELECT organization_id, COUNT(*) AS cnt
