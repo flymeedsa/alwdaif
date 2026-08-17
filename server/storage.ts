@@ -37,7 +37,7 @@ import {
   creditAdjustments, type CreditAdjustment, type InsertCreditAdjustment,
 } from "@workspace/db";
 import { db } from "./db";
-import { eq, desc, and, sql, count, lt, ilike, or, gte, isNull, isNotNull, ne } from "drizzle-orm";
+import { eq, desc, and, sql, count, lt, lte, gt, ilike, or, gte, isNull, isNotNull, ne } from "drizzle-orm";
 
 export interface IStorage {
   // Jobs
@@ -982,14 +982,14 @@ export class DatabaseStorage implements IStorage {
     const thresholdTime = new Date(Date.now() - minutesThreshold * 60 * 1000);
     const [result] = await db.select({ count: count() })
       .from(onlineVisitors)
-      .where(sql`${onlineVisitors.lastSeen} > ${thresholdTime}`);
+      .where(gt(onlineVisitors.lastSeen, thresholdTime));
     return result?.count || 0;
   }
 
   async cleanupOldOnlineVisitors(minutesThreshold: number): Promise<void> {
     const thresholdTime = new Date(Date.now() - minutesThreshold * 60 * 1000);
     await db.delete(onlineVisitors)
-      .where(sql`${onlineVisitors.lastSeen} < ${thresholdTime}`);
+      .where(lt(onlineVisitors.lastSeen, thresholdTime));
   }
 
   // View count incrementing
@@ -1322,7 +1322,7 @@ export class DatabaseStorage implements IStorage {
     const baseConditions: any[] = [
       eq(employerJobs.status, "published"),
       isNull(employerJobs.trashedAt),
-      sql`(${employerJobs.deadlineDate} IS NULL OR ${employerJobs.deadlineDate} > ${now})`,
+      or(isNull(employerJobs.deadlineDate), gt(employerJobs.deadlineDate, now)),
     ];
     if (region) {
       return await db.select().from(employerJobs)
@@ -1341,7 +1341,8 @@ export class DatabaseStorage implements IStorage {
         .where(and(
           eq(employerJobs.status, "published"),
           isNull(employerJobs.trashedAt),
-          sql`${employerJobs.deadlineDate} IS NOT NULL AND ${employerJobs.deadlineDate} <= ${now}`,
+          isNotNull(employerJobs.deadlineDate),
+          lte(employerJobs.deadlineDate, now),
         ))
         .orderBy(desc(employerJobs.deadlineDate));
     }
@@ -1400,7 +1401,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSimilarEmployerJobs(excludeId: number, title: string, limit: number): Promise<EmployerJob[]> {
-    const now = new Date().toISOString().split("T")[0];
+    const now = new Date();
     const words = title.split(/\s+/).filter(w => w.length > 2);
     if (words.length === 0) return [];
     const titleCondition = or(...words.map(w => ilike(employerJobs.title, `%${w}%`)))!;
@@ -1408,7 +1409,7 @@ export class DatabaseStorage implements IStorage {
       .where(and(
         eq(employerJobs.status, "published"),
         isNull(employerJobs.trashedAt),
-        sql`(${employerJobs.deadlineDate} IS NULL OR ${employerJobs.deadlineDate} > ${now})`,
+        or(isNull(employerJobs.deadlineDate), gt(employerJobs.deadlineDate, now)),
         ne(employerJobs.id, excludeId),
         titleCondition,
       ))

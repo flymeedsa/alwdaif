@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import { createServer } from "node:http";
 import cors from "cors";
 import compression from "compression";
+import cookieParser from "cookie-parser";
 import { registerRoutes } from "../server/routes/routes";
 import { seedCategories, ensureJobCategoryHierarchy, seedAds, seedFaq, seedBlogCategories } from "../server/seed";
 import { migrateMissingData } from "../server/migrate-prod-data";
@@ -27,6 +28,7 @@ let initialization: Promise<void> | undefined;
 app.set("trust proxy", 1);
 app.use(compression());
 app.use(cors({ origin: (origin, callback) => callback(null, origin || true), credentials: true }));
+app.use(cookieParser());
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: false, limit: "50mb" }));
 app.get("/api/healthz", (_req, res) => res.json({ status: "ok" }));
@@ -73,7 +75,9 @@ export default {
       const needsAppShell = asset.status === 404 || (asset.status >= 300 && asset.status < 400);
       const servesAppShell = needsAppShell || pathname === "/";
       if (needsAppShell) {
-        const indexUrl = new URL("/index.html", request.url);
+        // Cloudflare's HTML handling redirects /index.html to /. Fetching the
+        // canonical root avoids leaking that redirect to deep SPA routes.
+        const indexUrl = new URL("/", request.url);
         asset = await env.ASSETS.fetch(new Request(indexUrl, request));
       }
       if (servesAppShell) {

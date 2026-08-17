@@ -3919,15 +3919,18 @@ ${itemsXml}
       // Generate or use existing session ID from cookie
       let sessionId = req.cookies?.visitorSession;
       if (!sessionId) {
-        sessionId = `v_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+        sessionId = `v_${crypto.randomUUID()}`;
         res.cookie("visitorSession", sessionId, { 
           maxAge: 24 * 60 * 60 * 1000, // 24 hours
           httpOnly: true,
-          sameSite: "lax"
+          sameSite: "lax",
+          secure: req.secure || req.get("x-forwarded-proto") === "https",
+          path: "/"
         });
       }
       
-      const currentPage = req.body.currentPage || "/";
+      const rawPage = typeof req.body?.currentPage === "string" ? req.body.currentPage : "/";
+      const currentPage = rawPage.startsWith("/") ? rawPage.slice(0, 500) : "/";
       await storage.updateOnlineVisitor(sessionId, currentPage);
       res.json({ success: true });
     } catch (error) {
