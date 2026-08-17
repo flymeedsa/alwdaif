@@ -1377,7 +1377,12 @@ ${itemsXml}
     try {
       const cached = cache.get<unknown>("market-indicators");
       if (cached) return res.json(cached);
-      const snapshot = await storage.getLatestDailyMarketSnapshot();
+      let snapshot = await storage.getLatestDailyMarketSnapshot();
+      if (!snapshot) {
+        const { buildAndSaveDailyMarketSnapshot } = await import("../marketSnapshot");
+        await buildAndSaveDailyMarketSnapshot();
+        snapshot = await storage.getLatestDailyMarketSnapshot();
+      }
       if (!snapshot) return res.json(null);
       const data = JSON.parse(snapshot.snapshotData);
       cache.set("market-indicators", data, TTL.STATIC);
