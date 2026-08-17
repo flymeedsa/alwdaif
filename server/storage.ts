@@ -7,6 +7,7 @@ import {
   blogCategories, type BlogCategory, type InsertBlogCategory,
   siteSettings, type SiteSetting, type InsertSiteSetting,
   organizations, type Organization, type InsertOrganization,
+  organizationFollows,
   organizationTypes, type OrganizationType, type InsertOrganizationType,
   admins, type Admin, type InsertAdmin,
   permissions, type Permission, type InsertPermission,
@@ -519,22 +520,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrganizationsWithFollowers(): Promise<(Organization & { followerCount: number })[]> {
-    const result = await db.execute(sql`
-      SELECT
-        o.id, o.name, o.logo, o.type, o.description, o.website,
-        o.is_active AS "isActive",
-        o.created_at AS "createdAt",
-        o.updated_at AS "updatedAt",
-        COALESCE(fc.cnt, 0) AS "followerCount"
-      FROM organizations o
-      LEFT JOIN (
-        SELECT organization_id, COUNT(*) AS cnt
-        FROM organization_follows
-        GROUP BY organization_id
-      ) fc ON o.id = fc.organization_id
-      ORDER BY o.name
-    `);
-    return result.rows as (Organization & { followerCount: number })[];
+    return await db
+      .select({
+        id: organizations.id,
+        name: organizations.name,
+        logo: organizations.logo,
+        type: organizations.type,
+        description: organizations.description,
+        website: organizations.website,
+        isActive: organizations.isActive,
+        createdAt: organizations.createdAt,
+        updatedAt: organizations.updatedAt,
+        followerCount: count(organizationFollows.id),
+      })
+      .from(organizations)
+      .leftJoin(organizationFollows, eq(organizationFollows.organizationId, organizations.id))
+      .groupBy(organizations.id)
+      .orderBy(organizations.name);
   }
   
   async getOrganization(id: number): Promise<Organization | undefined> {

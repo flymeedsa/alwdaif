@@ -779,7 +779,7 @@ ${itemsXml}
   app.get("/api/results", async (req, res) => {
     try {
       const cached = cache.get<unknown[]>("results");
-      if (cached) return res.json(cached);
+      if (cached && cached.length > 0) return res.json(cached);
       const data = await storage.getResults();
       cache.set("results", data, TTL.MEDIUM);
       res.json(data);
