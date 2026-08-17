@@ -2,7 +2,6 @@ import { httpServerHandler } from "cloudflare:node";
 import express, { type NextFunction, type Request, type Response } from "express";
 import { createServer } from "node:http";
 import cors from "cors";
-import compression from "compression";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "../server/routes/routes";
 import { seedCategories, ensureJobCategoryHierarchy, seedAds, seedFaq, seedBlogCategories } from "../server/seed";
@@ -26,7 +25,6 @@ const server = createServer(app);
 let initialization: Promise<void> | undefined;
 
 app.set("trust proxy", 1);
-app.use(compression());
 app.use(cors({ origin: (origin, callback) => callback(null, origin || true), credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: "50mb" }));

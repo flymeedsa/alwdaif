@@ -1,7 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { createServer } from "http";
 import cors from "cors";
-import compression from "compression";
 import cookieParser from "cookie-parser";
 import { registerRoutes } from "./routes/routes";
 import { seedCategories, ensureJobCategoryHierarchy, seedAds, seedFaq, seedBlogCategories } from "./seed";
@@ -23,7 +22,6 @@ const app = express();
 const httpServer = createServer(app);
 
 app.set("trust proxy", 1);
-app.use(compression());
 app.use(cookieParser());
 app.use(cors({
   origin: (origin, callback) => callback(null, origin || true),
