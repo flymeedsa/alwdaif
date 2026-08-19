@@ -39,3 +39,10 @@ yarn-error.log*
 /outputs/
 /work/
 *.tsbuildinfo
+
+# local Cloudways deployment artifacts and credentials
+/cloudways/*.zip
+/cloudways/.secrets/
+/cloudways/.site-packages/
+/cloudways/migration/*.production.json
+/cloudways/migration/*.production.sql
