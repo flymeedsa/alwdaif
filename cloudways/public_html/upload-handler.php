@@ -26,20 +26,21 @@ $sendUploadJson = static function (int $status, array $payload): void {
 };
 
 $validateAdmin = static function (): bool {
-    $curl = curl_init(UPSTREAM_ORIGIN . '/api/admin/me');
-    if ($curl === false) return false;
-    curl_setopt_array($curl, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_NOBODY => true,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_TIMEOUT => 15,
-        CURLOPT_HTTPHEADER => ['Cookie: ' . ($_SERVER['HTTP_COOKIE'] ?? '')],
-    ]);
-    curl_exec($curl);
-    $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
-    curl_close($curl);
-    return $status >= 200 && $status < 300;
+    try {
+        $config = require dirname(__DIR__) . '/private_html/alwdaif-migration-config.php';
+        $header = $_SERVER['HTTP_X_ADMIN_TOKEN'] ?? ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
+        $token = preg_replace('/^Bearer\s+/i', '', trim((string) $header));
+        if (!$token || strpos($token, '.') === false) return false;
+        [$payloadPart, $signaturePart] = explode('.', $token, 2);
+        $decode = static fn(string $value): string => (string) base64_decode(strtr($value, '-_', '+/'), true);
+        $provided = $decode($signaturePart);
+        $expected = hash_hmac('sha256', $payloadPart, $config['token'], true);
+        $payload = json_decode($decode($payloadPart), true);
+        return hash_equals($expected, $provided) && is_array($payload) && (int) ($payload['expires'] ?? 0) >= time();
+    } catch (Throwable $error) {
+        error_log('Cloudways upload auth error: ' . $error->getMessage());
+        return false;
+    }
 };
 
 $storeUpload = static function (string $temporaryFile, int $size) use ($uploadRoot, $maxUploadBytes, $allowedUploadTypes): array {

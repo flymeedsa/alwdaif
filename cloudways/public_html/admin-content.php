@@ -12,6 +12,8 @@ if (strpos($contentPath, $contentPrefix) !== 0) return false;
 $resourceMap = [
     'jobs' => 'jobs',
     'organizations' => 'organizations',
+    'organization-types' => 'organization_types',
+    'admins' => 'admins',
     'categories' => 'categories',
     'blog' => 'blog_posts',
     'blog-categories' => 'blog_categories',
@@ -33,6 +35,18 @@ $resourceMap = [
     'community/members' => 'community_members',
     'community/ranks' => 'member_ranks',
     'support/tickets' => 'support_tickets',
+    'community/moderator-permissions' => 'community_moderator_permissions',
+    'community/moderator-requests' => 'community_moderator_requests',
+    'community/moderators' => 'community_moderators',
+    'community/reports' => 'community_reports',
+    'job-reports' => 'job_reports',
+    'employer-job-reports' => 'employer_job_reports',
+    'member-credits' => 'job_application_credits',
+    'job-credits' => 'job_application_credits',
+    'credit-adjustments' => 'credit_adjustments',
+    'site-settings' => 'site_settings',
+    'settings' => 'site_settings',
+    'weekly-summary/subscribers' => 'weekly_subscriptions',
 ];
 $relative = substr($contentPath, strlen($contentPrefix));
 $parts = array_values(array_filter(explode('/', $relative), static fn(string $part): bool => $part !== ''));
@@ -61,6 +75,7 @@ $camel = static function (string $value): string {
     return preg_replace_callback('/_([a-z])/', static fn(array $match): string => strtoupper($match[1]), $value) ?? $value;
 };
 $normalizeContentRow = static function (array $row) use ($camel): array {
+    unset($row['password'], $row['reset_token'], $row['reset_token_expires']);
     $result = [];
     foreach ($row as $key => $value) {
         if (is_string($value) && preg_match('/^-?[0-9]+$/', $value) === 1) $value = (int) $value;

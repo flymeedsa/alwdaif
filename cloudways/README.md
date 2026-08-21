@@ -1,23 +1,24 @@
-# Cloudways Flexible deployment
+# Cloudways production deployment
 
-This directory contains the no-downtime migration bridge for the existing
-Cloudways Flexible server.
+Cloudways is the only production runtime. The frontend is built from
+`application/artifacts/alwdaif`, the API runs in PHP, data is stored in
+MariaDB, and uploaded files are stored below `public_html/uploads`.
 
-## Phase 1
+## Local release
 
-- Copy the contents of `dist/client` into `cloudways/public_html`.
-- Keep `.htaccess` and `index.php` in that directory.
-- Deploy to a temporary Cloudways application URL for validation.
-- Static assets are served by Cloudways; dynamic routes remain on the current
-  production origin during the transition.
+```powershell
+$env:PORT = '4173'
+$env:BASE_PATH = '/'
+pnpm --dir application --filter '@workspace/alwdaif' build
+python cloudways/deploy_release.py
+```
 
-## Phase 2
+The deployment script publishes hashed assets first, saves a remote rollback
+copy under `releases/<timestamp>`, and activates `index.php` last.
 
-- Port the D1 schema and queries to MariaDB.
-- Replace the R2 binding with Cloudways/local or S3-compatible storage.
-- Replace the bridge with the native PHP API only after route-by-route tests
-  and data reconciliation pass.
+## GitHub deployment
 
-The bridge must never be used to switch the production domain before the
-temporary URL passes functional testing.
-
+Merging to `main` runs `.github/workflows/deploy-cloudways.yml`. Configure the
+four Cloudways SFTP secrets in the protected `production` environment. The
+workflow builds, checks for references to the previous runtime, deploys, and
+runs health checks.

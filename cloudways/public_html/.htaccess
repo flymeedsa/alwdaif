@@ -1,13 +1,17 @@
 Options -Indexes
 
+DirectoryIndex index.php
 RewriteEngine On
 
-# Cloudways/Apache should serve versioned frontend files directly.
+# Client-side application routes must reach the front controller even when a
+# stale directory with the same name exists from an older deployment.
+RewriteRule ^(?:admin|jobs|blog|results|services|community|weekly-summary|faq|pages|login)(?:/.*)?$ index.php [QSA,L]
+
+# Serve versioned frontend assets and uploaded files directly.
 RewriteCond %{REQUEST_FILENAME} -f [OR]
 RewriteCond %{REQUEST_FILENAME} -d
 RewriteRule ^ - [L]
 
-# Dynamic pages and API calls are forwarded by the migration bridge.
 RewriteRule ^ index.php [QSA,L]
 
 <IfModule mod_headers.c>

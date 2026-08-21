@@ -1,0 +1,190 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-cairo: 'Almarai', sans-serif;
+  --font-tajawal: 'Almarai', sans-serif;
+
+  /* ── Fluid Type Scale (mobile→desktop, clamp) ── */
+  --text-xs:   clamp(0.688rem, 0.65rem + 0.19vw, 0.75rem);
+  --text-sm:   clamp(0.813rem, 0.77rem + 0.22vw, 0.875rem);
+  --text-base: clamp(0.938rem, 0.89rem + 0.24vw, 1rem);
+  --text-lg:   clamp(1.063rem, 1rem + 0.31vw, 1.125rem);
+  --text-xl:   clamp(1.188rem, 1.1rem + 0.44vw, 1.25rem);
+  --text-2xl:  clamp(1.375rem, 1.2rem + 0.88vw, 1.5rem);
+  --text-3xl:  clamp(1.625rem, 1.35rem + 1.38vw, 1.875rem);
+  --text-4xl:  clamp(1.875rem, 1.5rem + 1.88vw, 2.25rem);
+  --text-5xl:  clamp(2.25rem,  1.7rem + 2.75vw, 3rem);
+  --text-6xl:  clamp(2.625rem, 1.9rem + 3.63vw, 3.75rem);
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+}
+
+/* ==========================================
+   DARK MODE (Default)
+   ========================================== */
+:root,
+.dark {
+  color-scheme: dark;
+
+  --background: 222 47% 8%;
+  --foreground: 0 0% 98%;
+
+  --card: 222 34% 12%;
+  --card-foreground: 0 0% 98%;
+
+  --popover: 222 34% 12%;
+  --popover-foreground: 0 0% 98%;
+
+  --primary: 210 100% 56%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 222 30% 18%;
+  --secondary-foreground: 0 0% 90%;
+
+  --muted: 222 30% 16%;
+  --muted-foreground: 215 20% 65%;
+
+  --accent: 222 30% 20%;
+  --accent-foreground: 0 0% 98%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 222 26% 22%;
+  --input: 222 26% 22%;
+  --ring: 210 100% 56%;
+
+  --radius: 0.75rem;
+
+  --font-sans: 'Almarai', sans-serif;
+  --font-heading: 'Almarai', sans-serif;
+}
+
+/* ==========================================
+   LIGHT MODE
+   ========================================== */
+.light {
+  color-scheme: light;
+
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+
+  --primary: 210 100% 40%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 210 30% 92%;
+  --secondary-foreground: 222 47% 20%;
+
+  --muted: 210 30% 94%;
+  --muted-foreground: 215 25% 40%;
+
+  --accent: 210 30% 92%;
+  --accent-foreground: 222 47% 15%;
+
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 210 30% 85%;
+  --input: 210 30% 88%;
+  --ring: 210 100% 40%;
+
+  --radius: 0.75rem;
+
+  --font-sans: 'Almarai', sans-serif;
+  --font-heading: 'Almarai', sans-serif;
+}
+
+/* ==========================================
+   SMOOTH TRANSITIONS
+   ========================================== */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 200ms;
+  transition-timing-function: ease;
+}
+
+/* Exclude transitions that should stay instant */
+.no-transition,
+.no-transition * {
+  transition: none !important;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-tajawal antialiased bg-background text-foreground;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-cairo font-bold;
+  }
+}
+
+@layer utilities {
+  /* App shell background — adapts to theme */
+  .app-shell {
+    background:
+      radial-gradient(800px 500px at 20% 10%, hsl(var(--primary) / 0.12), transparent 60%),
+      radial-gradient(700px 500px at 80% 0%, hsl(195 100% 55% / 0.07), transparent 55%),
+      hsl(var(--background));
+  }
+
+  .light .app-shell {
+    background:
+      radial-gradient(800px 500px at 20% 10%, hsl(var(--primary) / 0.06), transparent 60%),
+      radial-gradient(700px 500px at 80% 0%, hsl(195 100% 55% / 0.04), transparent 55%),
+      hsl(var(--background));
+  }
+
+  .glass {
+    background: hsl(var(--card) / 0.7);
+    backdrop-filter: blur(10px);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2;
+    --tw-ring-offset-color: hsl(var(--background));
+  }
+}

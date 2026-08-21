@@ -1,0 +1,75 @@
+name: Deploy Cloudways production
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - "application/**"
+      - "cloudways/public_html/**"
+      - "cloudways/deploy_release.py"
+      - ".github/workflows/deploy-cloudways.yml"
+
+concurrency:
+  group: cloudways-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: application/pnpm-lock.yaml
+
+      - name: Install dependencies
+        working-directory: application
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: application
+        env:
+          PORT: "4173"
+          BASE_PATH: "/"
+        run: pnpm --filter @workspace/alwdaif build
+
+      - name: Validate independent release
+        run: |
+          if grep -RIE "barqiyat\.chatgpt\.site|spock\.replit\.dev|UPSTREAM_ORIGIN" application/artifacts/alwdaif/dist/public cloudways/public_html; then
+            echo "Release still contains an old runtime dependency" >&2
+            exit 1
+          fi
+
+      - name: Deploy release
+        env:
+          CLOUDWAYS_SFTP_HOST: ${{ secrets.CLOUDWAYS_SFTP_HOST }}
+          CLOUDWAYS_SFTP_PORT: ${{ secrets.CLOUDWAYS_SFTP_PORT }}
+          CLOUDWAYS_SFTP_USERNAME: ${{ secrets.CLOUDWAYS_SFTP_USERNAME }}
+          CLOUDWAYS_SFTP_PASSWORD: ${{ secrets.CLOUDWAYS_SFTP_PASSWORD }}
+        run: |
+          python -m pip install --disable-pip-version-check paramiko==3.5.1
+          python cloudways/deploy_release.py
+
+      - name: Verify production
+        env:
+          PRODUCTION_URL: ${{ vars.CLOUDWAYS_PRODUCTION_URL }}
+        run: |
+          url="${PRODUCTION_URL:-https://phpstack-564460-6624296.cloudwaysapps.com}"
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 "$url/api/_cloudways/health" | grep '"status":"ok"'
+          curl --fail --silent --show-error --retry 5 --retry-delay 5 "$url/" | grep '/assets/index-'
+          if curl --fail --silent "$url/" | grep -E "barqiyat\.chatgpt\.site|spock\.replit\.dev"; then
+            echo "Production HTML still references the previous environment" >&2
+            exit 1
+          fi
