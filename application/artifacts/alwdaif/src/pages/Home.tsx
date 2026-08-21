@@ -69,7 +69,7 @@ const DEFAULT_SETTINGS: HomepageSettings = {
   },
   hero: {
     title: "ابحث عن وظيفتك اليوم",
-    subtitle: "خيارك الأول للبحث عن الوظائف المدنية والعسكرية والشركات.",
+    subtitle: "خيارك الأول للبحث عن الوظائف المدنية والعسكرية والشركات",
     showSearch: true,
   },
   stats: {
@@ -206,7 +206,7 @@ export default function Home() {
   const latestCount = settings.latest_jobs?.count ?? 12;
   const featuredCount = settings.featured?.count ?? 4;
   const heroTitle = settings.hero?.title || "ابحث عن وظيفتك اليوم";
-  const heroSubtitle = settings.hero?.subtitle || "خيارك الأول للبحث عن الوظائف المدنية والعسكرية والشركات.";
+  const heroSubtitle = settings.hero?.subtitle || "خيارك الأول للبحث عن الوظائف المدنية والعسكرية والشركات";
   const showSearch = settings.hero?.showSearch !== false;
 
   return (

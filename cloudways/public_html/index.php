@@ -57,7 +57,7 @@ if (($method ?? strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET')) === 'GET' && (p
         ],
         'hero' => [
             'title' => 'ابحث عن وظيفتك اليوم',
-            'subtitle' => 'خيارك الأول للبحث عن الوظائف المدنية والعسكرية والشركات الكبرى',
+            'subtitle' => 'خيارك الأول للبحث عن الوظائف المدنية والعسكرية والشركات',
             'showSearch' => true,
         ],
         'latest_jobs' => ['count' => 12],
