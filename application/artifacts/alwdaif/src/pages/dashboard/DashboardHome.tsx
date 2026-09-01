@@ -105,18 +105,27 @@ export default function DashboardHome() {
     enabled: !!authData?.authenticated,
   });
 
-  const unreadNotifications = (notifications as any[]).filter((n: any) => !n.isRead);
-  const unreadJobAlerts = (jobAlerts as any[]).filter((a: any) => !a.isRead);
-  const recentOrders = (orders as any[]).slice(0, 4);
+  // Keep the dashboard usable if a migrated or stale API returns an object
+  // instead of the array contract expected by these widgets.
+  const favoriteItems = Array.isArray(favorites) ? favorites : [];
+  const orderItems = Array.isArray(orders) ? orders : [];
+  const notificationItems = Array.isArray(notifications) ? notifications : [];
+  const postItems = Array.isArray(myPosts) ? myPosts : [];
+  const jobAlertItems = Array.isArray(jobAlerts) ? jobAlerts : [];
+  const announcementItems = Array.isArray(announcements) ? announcements : [];
+
+  const unreadNotifications = notificationItems.filter((n: any) => !n.isRead);
+  const unreadJobAlerts = jobAlertItems.filter((a: any) => !a.isRead);
+  const recentOrders = orderItems.slice(0, 4);
   const recentNotifications = unreadNotifications.slice(0, 4);
   const recentJobAlerts = unreadJobAlerts.slice(0, 3);
 
   const navLinks = [
-    ...(FEATURE_FLAGS.services ? [{ label: "طلباتي", path: "/dashboard/orders", icon: ShoppingBag, iconColor: "text-blue-400", iconBg: "bg-blue-500/10", count: (orders as any[]).length, countLabel: "طلب" }] : []),
-    { label: "المفضلة",           path: "/dashboard/favorites",            icon: Heart,           iconColor: "text-rose-400",   iconBg: "bg-rose-500/10",   count: (favorites as any[]).length,    countLabel: "وظيفة" },
-    ...(FEATURE_FLAGS.community ? [{ label: "المجتمع", path: "/dashboard/community", icon: Users, iconColor: "text-green-400", iconBg: "bg-green-500/10", count: (myPosts as any[]).length, countLabel: "منشور" }] : []),
+    ...(FEATURE_FLAGS.services ? [{ label: "طلباتي", path: "/dashboard/orders", icon: ShoppingBag, iconColor: "text-blue-400", iconBg: "bg-blue-500/10", count: orderItems.length, countLabel: "طلب" }] : []),
+    { label: "المفضلة",           path: "/dashboard/favorites",            icon: Heart,           iconColor: "text-rose-400",   iconBg: "bg-rose-500/10",   count: favoriteItems.length, countLabel: "وظيفة" },
+    ...(FEATURE_FLAGS.community ? [{ label: "المجتمع", path: "/dashboard/community", icon: Users, iconColor: "text-green-400", iconBg: "bg-green-500/10", count: postItems.length, countLabel: "منشور" }] : []),
     { label: "تنبيهات الوظائف",  path: "/dashboard/job-alerts",           icon: BriefcaseBusiness, iconColor: "text-orange-400", iconBg: "bg-orange-500/10", count: unreadJobAlerts.length,        countLabel: "جديد", highlight: unreadJobAlerts.length > 0 },
-    { label: "الإعلانات",         path: "/dashboard/announcements",        icon: Megaphone,       iconColor: "text-purple-400", iconBg: "bg-purple-500/10", count: (announcements as any[]).length, countLabel: "إعلان" },
+    { label: "الإعلانات",         path: "/dashboard/announcements",        icon: Megaphone,       iconColor: "text-purple-400", iconBg: "bg-purple-500/10", count: announcementItems.length, countLabel: "إعلان" },
     { label: "الإشعارات",         path: "/dashboard/notifications",        icon: Bell,            iconColor: "text-amber-400",  iconBg: "bg-amber-500/10",  count: unreadNotifications.length,     countLabel: "جديد", highlight: unreadNotifications.length > 0 },
     { label: "الملخص الأسبوعي",  path: "/dashboard/weekly-subscription",  icon: Newspaper,       iconColor: "text-cyan-400",   iconBg: "bg-cyan-500/10",   count: null, countLabel: "" },
     { label: "حسابي",             path: "/dashboard/account",              icon: User,            iconColor: "text-slate-400",  iconBg: "bg-slate-500/10",  count: null, countLabel: "" },

@@ -71,8 +71,10 @@ export default function DashboardJobAlerts() {
     },
   });
 
-  const unreadCount = (alerts as any[]).filter((a: any) => !a.isRead).length;
-  const followedOrgs = (follows as any[]).map((f: any) => {
+  const alertItems = Array.isArray(alerts) ? alerts : [];
+  const followItems = Array.isArray(follows) ? follows : [];
+  const unreadCount = alertItems.filter((a: any) => !a.isRead).length;
+  const followedOrgs = followItems.map((f: any) => {
     const org = (orgs as Organization[]).find(o => o.id === f.organizationId);
     return org;
   }).filter(Boolean);
@@ -212,7 +214,7 @@ export default function DashboardJobAlerts() {
               <div key={i} className="h-20 rounded-2xl bg-muted animate-pulse" />
             ))}
           </div>
-        ) : (alerts as any[]).length === 0 ? (
+        ) : alertItems.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground">
             <BellOff className="h-12 w-12 mx-auto mb-3 opacity-30" />
             <p className="text-lg font-medium mb-1">لا توجد تنبيهات</p>
@@ -230,7 +232,7 @@ export default function DashboardJobAlerts() {
           </div>
         ) : (
           <div className="space-y-3">
-            {(alerts as any[]).slice(0, visibleCount).map((alert: any) => (
+            {alertItems.slice(0, visibleCount).map((alert: any) => (
               <div
                 key={alert.id}
                 className={cn(
@@ -271,7 +273,7 @@ export default function DashboardJobAlerts() {
               </div>
             ))}
 
-            {visibleCount < (alerts as any[]).length && (
+            {visibleCount < alertItems.length && (
               <div className="pt-2 text-center">
                 <Button
                   variant="outline"
@@ -282,7 +284,7 @@ export default function DashboardJobAlerts() {
                   <ChevronDown className="h-4 w-4" />
                   تحميل المزيد
                   <span className="text-muted-foreground text-xs">
-                    ({(alerts as any[]).length - visibleCount} متبقية)
+                    ({alertItems.length - visibleCount} متبقية)
                   </span>
                 </Button>
               </div>
