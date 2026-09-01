@@ -4,7 +4,7 @@ p.max-w-xl.mx-auto {
 }
 
 p.max-w-xl.mx-auto::after {
-  content: "خيارك الأول للبحث عن الوظائف المدنية والعسكرية والشركات";
+  content: "خيارك الأول للبحث عن الوظائف المدنية والعسكرية والشركات الكبرى";
   font-size: 0.875rem;
   line-height: 1.5rem;
 }
