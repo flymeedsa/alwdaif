@@ -57,7 +57,11 @@ if (isset($parts[1]) && isset($resourceMap[$resource . '/' . $parts[1]])) {
     $idPartIndex = 2;
 }
 if (!isset($resourceMap[$resource])) return false;
-if (count($parts) > $idPartIndex + 1) return false;
+$statusAction = $resource === 'employer-jobs'
+    && isset($parts[1], $parts[2])
+    && ctype_digit($parts[1])
+    && $parts[2] === 'status';
+if (count($parts) > $idPartIndex + 1 && !$statusAction) return false;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -129,6 +133,29 @@ try {
     foreach ($pdo->query('SHOW COLUMNS FROM `' . $table . '`')->fetchAll() as $column) $columns[(string) $column['Field']] = true;
     $id = isset($parts[$idPartIndex]) && ctype_digit($parts[$idPartIndex]) ? (int) $parts[$idPartIndex] : null;
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+
+    if ($statusAction && $method === 'PATCH') {
+        $body = json_decode(file_get_contents('php://input') ?: '{}', true);
+        $requestedStatus = is_array($body) ? trim((string) ($body['status'] ?? '')) : '';
+        $status = $requestedStatus === 'trashed' ? 'trash' : $requestedStatus;
+        if (!in_array($status, ['pending', 'published', 'draft', 'closed', 'trash'], true) || $id === null) {
+            $sendContentJson(400, ['message' => 'حالة الوظيفة غير صالحة']); return true;
+        }
+        $updates = ['`status` = ?']; $parameters = [$status];
+        $now = (int) floor(microtime(true) * 1000);
+        if (isset($columns['updated_at'])) { $updates[] = '`updated_at` = ?'; $parameters[] = $now; }
+        if (isset($columns['trashed_at'])) {
+            $updates[] = '`trashed_at` = ?'; $parameters[] = $status === 'trash' ? $now : null;
+        }
+        $parameters[] = $id;
+        $statement = $pdo->prepare('UPDATE `employer_jobs` SET ' . implode(', ', $updates) . ' WHERE `id` = ?');
+        $statement->execute($parameters);
+        if (!$statement->rowCount()) { $sendContentJson(404, ['message' => 'الوظيفة غير موجودة']); return true; }
+        $statement = $pdo->prepare('SELECT * FROM `employer_jobs` WHERE `id` = ? LIMIT 1');
+        $statement->execute([$id]);
+        $sendContentJson(200, $normalizeContentRow($statement->fetch()));
+        return true;
+    }
 
     if ($method === 'GET') {
         if ($id !== null) {
