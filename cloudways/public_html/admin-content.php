@@ -61,7 +61,11 @@ $statusAction = $resource === 'employer-jobs'
     && isset($parts[1], $parts[2])
     && ctype_digit($parts[1])
     && $parts[2] === 'status';
-if (count($parts) > $idPartIndex + 1 && !$statusAction) return false;
+$supportAction = $resource === 'support/tickets'
+    && isset($parts[2], $parts[3])
+    && ctype_digit($parts[2])
+    && in_array($parts[3], ['reply', 'status'], true);
+if (count($parts) > $idPartIndex + 1 && !$statusAction && !$supportAction) return false;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -133,6 +137,51 @@ try {
     foreach ($pdo->query('SHOW COLUMNS FROM `' . $table . '`')->fetchAll() as $column) $columns[(string) $column['Field']] = true;
     $id = isset($parts[$idPartIndex]) && ctype_digit($parts[$idPartIndex]) ? (int) $parts[$idPartIndex] : null;
     $method = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+
+    // Support tickets have a nested conversation API rather than the simple
+    // single-row CRUD shape used by other admin resources.
+    if ($resource === 'support/tickets' && $id !== null) {
+        if ($method === 'GET') {
+            $statement = $pdo->prepare('SELECT * FROM `support_tickets` WHERE `id` = ? LIMIT 1');
+            $statement->execute([$id]);
+            $ticket = $statement->fetch();
+            if (!$ticket) { $sendContentJson(404, ['message' => 'التذكرة غير موجودة']); return true; }
+            $replyStatement = $pdo->prepare('SELECT * FROM `support_ticket_replies` WHERE `ticket_id` = ? ORDER BY `created_at`, `id`');
+            $replyStatement->execute([$id]);
+            $sendContentJson(200, [
+                'ticket' => $normalizeContentRow($ticket),
+                'replies' => array_map($normalizeContentRow, $replyStatement->fetchAll()),
+            ]);
+            return true;
+        }
+        if ($method === 'POST' && isset($parts[3]) && $parts[3] === 'reply') {
+            $body = json_decode(file_get_contents('php://input') ?: '{}', true);
+            $message = is_array($body) ? trim((string) ($body['message'] ?? '')) : '';
+            if ($message === '') { $sendContentJson(400, ['message' => 'الرسالة مطلوبة']); return true; }
+            $now = (int) floor(microtime(true) * 1000);
+            $replyStatement = $pdo->prepare('INSERT INTO `support_ticket_replies` (`ticket_id`, `sender_id`, `sender_type`, `message`, `created_at`) VALUES (?, ?, "admin", ?, ?)');
+            $replyStatement->execute([$id, (int) ($payload['adminId'] ?? 0), $message, $now]);
+            $replyId = (int) $pdo->lastInsertId();
+            $pdo->prepare('UPDATE `support_tickets` SET `status` = "in_progress", `last_admin_reply_at` = ?, `updated_at` = ? WHERE `id` = ?')->execute([$now, $now, $id]);
+            $replyStatement = $pdo->prepare('SELECT * FROM `support_ticket_replies` WHERE `id` = ? LIMIT 1');
+            $replyStatement->execute([$replyId]);
+            $sendContentJson(201, $normalizeContentRow($replyStatement->fetch()));
+            return true;
+        }
+        if ($method === 'PUT' && isset($parts[3]) && $parts[3] === 'status') {
+            $body = json_decode(file_get_contents('php://input') ?: '{}', true);
+            $status = is_array($body) ? trim((string) ($body['status'] ?? '')) : '';
+            if (!in_array($status, ['open', 'in_progress', 'pending', 'closed'], true)) { $sendContentJson(400, ['message' => 'حالة غير صحيحة']); return true; }
+            $now = (int) floor(microtime(true) * 1000);
+            $statement = $pdo->prepare('UPDATE `support_tickets` SET `status` = ?, `closed_at` = ?, `updated_at` = ? WHERE `id` = ?');
+            $statement->execute([$status, $status === 'closed' ? $now : null, $now, $id]);
+            if (!$statement->rowCount()) { $sendContentJson(404, ['message' => 'التذكرة غير موجودة']); return true; }
+            $statement = $pdo->prepare('SELECT * FROM `support_tickets` WHERE `id` = ? LIMIT 1');
+            $statement->execute([$id]);
+            $sendContentJson(200, $normalizeContentRow($statement->fetch()));
+            return true;
+        }
+    }
 
     if ($statusAction && $method === 'PATCH') {
         $body = json_decode(file_get_contents('php://input') ?: '{}', true);
