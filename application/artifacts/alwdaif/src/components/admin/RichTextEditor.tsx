@@ -164,6 +164,10 @@ export default function RichTextEditor({ content, onChange, placeholder }: RichT
         heading: {
           levels: [1, 2, 3],
         },
+        // StarterKit includes these extensions in current Tiptap versions;
+        // disable them here because they are configured explicitly below.
+        link: false,
+        underline: false,
       }),
       Underline,
       TextStyle,
