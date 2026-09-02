@@ -62,6 +62,18 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString("ar-SA");
 }
 
+// The PHP API may serialize deadlineDate as either an ISO string or a
+// millisecond timestamp. Keep the edit form resilient to both formats.
+function dateInputValue(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const WORK_SCHEDULE_LABELS: Record<string, string> = { full_time: "دوام كامل", part_time: "دوام جزئي" };
 const WORK_MODE_LABELS: Record<string, string> = { on_site: "حضوري", remote: "عن بعد" };
 const GENDER_LABELS: Record<string, string> = { all: "الجنسين", male: "ذكور فقط", female: "إناث فقط" };
@@ -341,7 +353,7 @@ function EditJobDialog({ job, open, onClose, onSaved }: { job: any; open: boolea
         workSchedule: job.workSchedule ?? "",
         workMode: job.workMode ?? "",
         region: job.region ?? "كل المدن",
-        deadlineDate: job.deadlineDate ? job.deadlineDate.slice(0, 10) : "",
+        deadlineDate: dateInputValue(job.deadlineDate),
       });
     }
   }, [open, job?.id]);
