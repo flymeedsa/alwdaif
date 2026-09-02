@@ -39,6 +39,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -384,7 +385,7 @@ function EditJobDialog({ job, open, onClose, onSaved }: { job: any; open: boolea
       <DialogContent className="max-w-md" dir="rtl">
         <DialogHeader>
           <DialogTitle>تعديل الوظيفة</DialogTitle>
-          <p className="text-sm text-muted-foreground">{job?.title}</p>
+          <DialogDescription>{job?.title}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
