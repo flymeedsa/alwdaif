@@ -83,6 +83,26 @@ $normalizeContentRow = static function (array $row) use ($camel): array {
     }
     return $result;
 };
+$normalizeDeadlineMillis = static function ($value) {
+    if ($value === null || $value === '') return null;
+    if (is_int($value) || is_float($value) || (is_string($value) && ctype_digit(trim($value)))) {
+        return (int) $value;
+    }
+    $raw = trim((string) $value);
+    if ($raw === '') return null;
+    try {
+        $timezone = new DateTimeZone('Asia/Riyadh');
+        $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) === 1
+            ? DateTimeImmutable::createFromFormat('!Y-m-d', $raw, $timezone)
+            : new DateTimeImmutable($raw, $timezone);
+        if (!$date) return null;
+        // An expiry date remains valid through the selected calendar day.
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) === 1) $date = $date->setTime(23, 59, 59);
+        return $date->getTimestamp() * 1000;
+    } catch (Throwable $ignored) {
+        return null;
+    }
+};
 
 try {
     $config = require dirname(__DIR__) . '/private_html/alwdaif-migration-config.php';
@@ -129,6 +149,7 @@ try {
         foreach ($body as $key => $value) {
             $column = $snake((string) $key);
             if ($column === 'id' || !isset($columns[$column])) continue;
+            if ($column === 'deadline_date') $value = $normalizeDeadlineMillis($value);
             if (is_bool($value)) $value = $value ? 1 : 0;
             if (is_array($value) || is_object($value)) $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $values[$column] = $value;
