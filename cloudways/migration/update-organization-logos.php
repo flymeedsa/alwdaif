@@ -41,7 +41,9 @@ $logos = [
 ];
 
 try {
-    $config = require dirname(__DIR__, 2) . '/private_html/alwdaif-migration-config.php';
+    // The one-time script is uploaded to the application's public_html.
+    // private_html is its sibling inside the same Cloudways application root.
+    $config = require dirname(__DIR__) . '/private_html/alwdaif-migration-config.php';
     $pdo = new PDO(
         sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $config['host'], $config['port'], $config['database']),
         $config['username'],
