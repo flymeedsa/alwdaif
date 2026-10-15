@@ -56,7 +56,6 @@ try {
 
     $simpleRoutes = [
         '/categories' => ['categories', '`sort_order` ASC, `id` ASC'],
-        '/organizations' => ['organizations', '`id` ASC'],
         '/organization-types' => ['organization_types', '`id` ASC'],
         '/blog-categories' => ['blog_categories', '`sort_order` ASC, `id` ASC'],
         '/services' => ['services', '`sort_order` ASC, `id` ASC'],
@@ -64,6 +63,18 @@ try {
         '/faq' => ['faq_items', '`sort_order` ASC, `id` ASC'],
         '/community/ranks' => ['member_ranks', '`sort_order` ASC, `id` ASC'],
     ];
+    if ($route === '/organizations') {
+        $rows = $pdo->query(
+            'SELECT o.*,
+                    (SELECT COUNT(*) FROM `organization_follows` f WHERE f.`organization_id` = o.`id`) AS `follower_count`
+             FROM `organizations` o
+             ORDER BY o.`id` ASC'
+        )->fetchAll();
+        $mapped = array_map($normalize, $rows);
+        $totalFollowers = array_sum(array_map(static fn(array $row): int => (int) ($row['followerCount'] ?? 0), $mapped));
+        $respond(200, ['orgs' => $mapped, 'totalFollowers' => $totalFollowers]);
+        return true;
+    }
     if (isset($simpleRoutes[$route])) {
         [$table, $order] = $simpleRoutes[$route];
         $rows = $pdo->query('SELECT * FROM `' . $table . '` ORDER BY ' . $order)->fetchAll();
