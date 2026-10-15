@@ -1,6 +1,8 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/public-content-queries.php';
+require_once __DIR__ . '/input-validation.php';
 
 /**
  * Cloudways-native routes that do not fit the small CRUD handlers.
@@ -23,7 +25,6 @@ $runtimeCamel = static function (array $row): array {
     $out = [];
     foreach ($row as $key => $value) {
         $name = preg_replace_callback('/_([a-z])/', static fn(array $match): string => strtoupper($match[1]), (string) $key) ?? $key;
-        if (is_string($value) && preg_match('/^-?[0-9]+$/', $value) === 1) $value = (int) $value;
         $out[$name] = $value;
     }
     return $out;
@@ -51,7 +52,7 @@ try {
     $memberId = null;
     $communityToken = trim((string) ($_SERVER['HTTP_X_COMMUNITY_TOKEN'] ?? ''));
     if ($communityToken !== '') {
-        $statement = $runtimePdo->prepare('SELECT `member_id` FROM `community_auth_tokens` WHERE `token_hash`=? AND `expires_at`>? LIMIT 1');
+        $statement = $runtimePdo->prepare('SELECT t.`member_id` FROM `community_auth_tokens` t JOIN `community_members` m ON m.`id`=t.`member_id` WHERE m.`is_banned`=0 AND `token_hash`=? AND `expires_at`>? LIMIT 1');
         $statement->execute([hash('sha256', $communityToken), $now]);
         $value = $statement->fetchColumn();
         if ($value !== false) $memberId = (int) $value;
@@ -90,15 +91,15 @@ try {
         $statement->execute([$id]); $runtimeJson(200, array_map($runtimeCamel, $statement->fetchAll())); return true;
     }
     if ($runtimePath === '/api/employer-jobs-all' && $runtimeMethod === 'GET') {
-        $rows = $runtimePdo->query('SELECT * FROM `employer_jobs` WHERE `trashed_at` IS NULL ORDER BY `created_at` DESC')->fetchAll();
+        $rows = alwdaifPublicEmployerJobs($runtimePdo);
         $runtimeJson(200, array_map($runtimeCamel, $rows)); return true;
     }
     if ($runtimePath === '/api/employer-jobs/closed' && $runtimeMethod === 'GET') {
-        $statement = $runtimePdo->prepare("SELECT * FROM `employer_jobs` WHERE `trashed_at` IS NULL AND (`status`='closed' OR (`deadline_date` IS NOT NULL AND `deadline_date`<=?)) ORDER BY `created_at` DESC");
+        $statement = $runtimePdo->prepare("SELECT * FROM `employer_jobs` WHERE `trashed_at` IS NULL AND (`status`='closed' OR (`status`='published' AND `deadline_date` IS NOT NULL AND `deadline_date`<=?)) ORDER BY `created_at` DESC");
         $statement->execute([$now]); $runtimeJson(200, array_map($runtimeCamel, $statement->fetchAll())); return true;
     }
     if (preg_match('#^/api/employer-jobs/(\d+)$#', $runtimePath, $match) === 1 && $runtimeMethod === 'GET') {
-        $statement = $runtimePdo->prepare('SELECT * FROM `employer_jobs` WHERE `id`=? AND `trashed_at` IS NULL LIMIT 1');
+        $statement = $runtimePdo->prepare("SELECT * FROM `employer_jobs` WHERE `id`=? AND `trashed_at` IS NULL AND `status` IN ('published','closed') LIMIT 1");
         $statement->execute([(int) $match[1]]); $row = $statement->fetch();
         if ($row) $runtimePdo->prepare('UPDATE `employer_jobs` SET `view_count`=`view_count`+1 WHERE `id`=?')->execute([(int) $match[1]]);
         $runtimeJson($row ? 200 : 404, $row ? $runtimeCamel($row) : ['message' => 'الوظيفة غير موجودة']); return true;
@@ -111,12 +112,22 @@ try {
         foreach (['title', 'company', 'description', 'contactValue', 'submitterName', 'submitterEmail'] as $required) {
             if (trim((string) ($body[$required] ?? '')) === '') { $runtimeJson(400, ['message' => 'بيانات الوظيفة ناقصة']); return true; }
         }
+        $contactMethod = $body['contactMethod'] ?? 'email';
+        $contactValue = trim((string) $body['contactValue']);
+        if (!filter_var($body['submitterEmail'], FILTER_VALIDATE_EMAIL)
+            || !in_array($contactMethod, ['email','phone','url'], true)
+            || ($contactMethod === 'email' && !filter_var($contactValue, FILTER_VALIDATE_EMAIL))
+            || ($contactMethod === 'url' && (!filter_var($contactValue, FILTER_VALIDATE_URL) || !in_array(strtolower(parse_url($contactValue, PHP_URL_SCHEME) ?? ''), ['http','https'], true)))
+            || ($contactMethod === 'phone' && preg_match('/^\+?[0-9 ()-]{7,20}$/', $contactValue) !== 1)) {
+            $runtimeJson(400, ['message'=>'بيانات التواصل غير صحيحة']); return true;
+        }
+        $deadline = alwdaifDeadlineMillis($body['deadlineDate'] ?? null);
         $statement = $runtimePdo->prepare('INSERT INTO `employer_jobs` (`title`,`company`,`region`,`city`,`work_schedule`,`work_mode`,`description`,`requirements`,`target_gender`,`target_nationality`,`contact_method`,`contact_value`,`submitter_name`,`submitter_email`,`status`,`deadline_date`,`view_count`,`created_at`,`updated_at`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,\'pending\',?,0,?,?)');
         $statement->execute([
             $body['title'], $body['company'], $body['region'] ?? null, $body['city'] ?? null,
             $body['workSchedule'] ?? null, $body['workMode'] ?? null, $body['description'], $body['requirements'] ?? null,
             $body['targetGender'] ?? 'all', $body['targetNationality'] ?? 'all', $body['contactMethod'] ?? 'email',
-            $body['contactValue'], $body['submitterName'], $body['submitterEmail'], $body['deadlineDate'] ?? null, $now, $now,
+            $contactValue, $body['submitterName'], $body['submitterEmail'], $deadline, $now, $now,
         ]);
         $runtimeJson(201, ['success' => true, 'id' => (int) $runtimePdo->lastInsertId()]); return true;
     }
@@ -242,9 +253,10 @@ try {
     }
 
     return false;
+} catch (InvalidArgumentException $error) {
+    $runtimeJson(400, ['message'=>$error->getMessage()]); return true;
 } catch (Throwable $error) {
     error_log('Cloudways runtime API error: ' . $error->getMessage());
     $runtimeJson(500, ['message' => 'تعذر إكمال الطلب']);
     return true;
 }
-

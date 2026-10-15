@@ -1,3 +1,4 @@
+import { sanitizeHtml } from "@/lib/sanitize";
 import { useRoute } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Helmet } from "react-helmet";
@@ -110,7 +111,7 @@ export default function PageView() {
                   [&_*]:!color-inherit
                 "
                 style={{ direction: "rtl" }}
-                dangerouslySetInnerHTML={{ __html: page.content || "" }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(page.content || "") }}
               />
             </div>
 

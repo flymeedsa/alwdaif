@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/public-content-queries.php';
+
 /** Read-only MariaDB API used to validate parity before switching production routes. */
 
 $localPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -15,6 +17,7 @@ $isPublicLocalRoute = in_array($localPath, $publicLocalRoutes, true)
     || preg_match('#^/api/(jobs|blog)/\d+$#', $localPath) === 1
     || preg_match('#^/api/pages/[^/]+$#', $localPath) === 1;
 if (!$isQaRoute && !$isPublicLocalRoute) return false;
+if (!in_array(strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET'), ['GET', 'HEAD'], true)) return false;
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
@@ -25,7 +28,6 @@ $camelize = static function (string $value): string {
 $normalize = static function (array $row) use ($camelize): array {
     $result = [];
     foreach ($row as $key => $value) {
-        if (is_string($value) && preg_match('/^-?[0-9]+$/', $value) === 1) $value = (int) $value;
         $result[$camelize((string) $key)] = $value;
     }
     return $result;
@@ -70,7 +72,7 @@ try {
     }
 
     if ($route === '/jobs' || $route === '/jobs/featured') {
-        $where = ['j.`trashed_at` IS NULL'];
+        $where = ['j.`trashed_at` IS NULL', "j.`status` = 'published'"];
         $params = [];
         if ($route === '/jobs/featured') $where[] = 'j.`is_featured` = 1';
         if (isset($_GET['category']) && $_GET['category'] !== '' && $_GET['category'] !== 'all') {
@@ -86,7 +88,20 @@ try {
         return true;
     }
     if (preg_match('#^/jobs/(\d+)$#', $route, $match) === 1) {
-        $statement = $pdo->prepare('SELECT * FROM `jobs` WHERE `id` = ? AND `trashed_at` IS NULL LIMIT 1');
+        if (($_GET['isResult'] ?? '') === 'true') {
+            $statement = $pdo->prepare("SELECT * FROM `results` WHERE `id`=? AND `trashed_at` IS NULL AND `status`='published' LIMIT 1");
+            $statement->execute([(int)$match[1]]); $row = $statement->fetch();
+            if (!$row) { $respond(404, ['message'=>'Result not found']); return true; }
+            $result = $normalize($row);
+            $result = array_merge($result, ['company'=>$row['org'], 'description'=>$row['details'], 'applyUrl'=>$row['inquiry_url'], 'sourceUrl'=>$row['inquiry_url'], 'category'=>'results', 'isResult'=>true, 'isFeatured'=>false, 'organization'=>null]);
+            if ($row['organization_id']) {
+                $organization = $pdo->prepare('SELECT * FROM `organizations` WHERE `id`=?');
+                $organization->execute([$row['organization_id']]); $org = $organization->fetch();
+                if ($org) $result['organization'] = $normalize($org);
+            }
+            $respond(200, $result); return true;
+        }
+        $statement = $pdo->prepare("SELECT * FROM `jobs` WHERE `id` = ? AND `trashed_at` IS NULL AND `status`='published' LIMIT 1");
         $statement->execute([(int) $match[1]]); $row = $statement->fetch();
         $respond($row ? 200 : 404, $row ? $normalize($row) : ['message' => 'Job not found']);
         return true;
@@ -97,18 +112,17 @@ try {
         return true;
     }
     if (preg_match('#^/blog/(\d+)$#', $route, $match) === 1) {
-        $statement = $pdo->prepare('SELECT * FROM `blog_posts` WHERE `id` = ? AND `trashed_at` IS NULL LIMIT 1');
-        $statement->execute([(int) $match[1]]); $row = $statement->fetch();
+        $row = alwdaifPublicBlogPost($pdo, (int) $match[1]);
         $respond($row ? 200 : 404, $row ? $normalize($row) : ['message' => 'Post not found']);
         return true;
     }
     if ($route === '/employer-jobs') {
-        $rows = $pdo->query('SELECT * FROM `employer_jobs` ORDER BY `created_at` DESC, `id` DESC')->fetchAll();
+        $rows = alwdaifPublicEmployerJobs($pdo);
         $respond(200, array_map($normalize, $rows));
         return true;
     }
     if ($route === '/results') {
-        $rows = $pdo->query('SELECT * FROM `results` WHERE `trashed_at` IS NULL ORDER BY `created_at` DESC, `id` DESC')->fetchAll();
+        $rows = $pdo->query("SELECT * FROM `results` WHERE `trashed_at` IS NULL AND `status`='published' ORDER BY `created_at` DESC, `id` DESC")->fetchAll();
         $respond(200, array_map($normalize, $rows));
         return true;
     }

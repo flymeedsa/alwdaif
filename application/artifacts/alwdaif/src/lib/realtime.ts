@@ -7,6 +7,11 @@ const WS_URL =
 
 let ws: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+export function supportsRealtimeSocket(): boolean {
+  return document.querySelector('meta[name="alwdaif-realtime"]')?.getAttribute('content') !== 'poll';
+}
 
 const eventToQueryKeys: Record<string, string[]> = {
   jobs_changed: ["/api/jobs", "/api/admin/jobs", "/api/jobs/featured"],
@@ -35,6 +40,15 @@ const eventToQueryKeys: Record<string, string[]> = {
 };
 
 export function connectRealtime() {
+  if (!supportsRealtimeSocket()) {
+    if (!pollTimer) pollTimer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      for (const key of new Set(Object.values(eventToQueryKeys).flat())) {
+        void queryClient.invalidateQueries({ queryKey: [key], type: 'active' });
+      }
+    }, 60_000);
+    return;
+  }
   if (ws?.readyState === WebSocket.OPEN) return;
 
   ws = new WebSocket(WS_URL);

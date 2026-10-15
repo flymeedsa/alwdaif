@@ -28,9 +28,14 @@ cd application
 pnpm install --frozen-lockfile
 $env:PORT = '4173'
 $env:BASE_PATH = '/'
-$env:API_PROXY_TARGET = 'https://phpstack-564460-6624296.cloudwaysapps.com'
+$env:API_PROXY_TARGET = 'http://127.0.0.1:5000'
 pnpm --filter '@workspace/alwdaif' dev
 ```
+
+شغّل الـAPI وقاعدة التطوير المحلية أولًا باستخدام `application/scripts/start-local.ps1`
+إذا كانت بيئة PostgreSQL الموجودة مجهزة. لا توجه اختبارات الكتابة المحلية إلى
+عنوان الإنتاج. هذا الـAPI المحلي يعمل بـNode/PostgreSQL ولا يثبت توافق تنفيذ
+Cloudways المبني على PHP/MariaDB؛ يلزم اختبار مستقل لهذا التنفيذ قبل الإطلاق.
 
 انسخ `application/.env.example` إلى ملف محلي عند الحاجة ولا تحفظ الأسرار في
 Git. فحص الواجهة وبناؤها:

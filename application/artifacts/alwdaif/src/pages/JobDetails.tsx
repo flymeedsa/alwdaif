@@ -1,6 +1,7 @@
+import { sanitizeHtml } from "@/lib/sanitize";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useSearch } from "wouter";
 import { Helmet } from "react-helmet";
 import { buildJobPostingJsonLd } from "@/lib/structuredData";
 import { toDisplayUrl } from "@/lib/mediaUrl";
@@ -77,7 +78,8 @@ export default function JobDetails() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const urlParams = new URLSearchParams(window.location.search);
+  const searchString = useSearch();
+  const urlParams = new URLSearchParams(searchString);
   const isResult = urlParams.get("isResult") === "true";
 
   const { data: job, isLoading, error } = useQuery<JobWithOrg>({
@@ -491,7 +493,7 @@ export default function JobDetails() {
                   <h2 className="text-lg md:text-2xl font-bold font-heading text-foreground border-r-4 border-primary pr-4">الوصف الوظيفي</h2>
                   <div
                     className="text-foreground/80 leading-relaxed text-lg space-y-4 pr-1 prose dark:prose-invert max-w-none"
-                    dangerouslySetInnerHTML={{ __html: job.description }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(job.description) }}
                   />
                 </section>
               )}

@@ -1,3 +1,4 @@
+import { sanitizeHtml } from "@/lib/sanitize";
 import { Helmet } from "react-helmet";
 import Layout from "@/components/layout/Layout";
 import { useRoute, Link } from "wouter";
@@ -169,7 +170,7 @@ export default function BlogPostDetails() {
             )}
             <div
               className="text-foreground/80 leading-loose text-sm md:text-base"
-              dangerouslySetInnerHTML={{ __html: post.content || "" }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.content || "") }}
             />
           </div>
         </div>

@@ -1,3 +1,4 @@
+import { sanitizeHtml } from "@/lib/sanitize";
 import { useEffect } from "react";
 import { useParams } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -137,7 +138,7 @@ export default function DashboardAnnouncementView() {
                     prose-img:rounded-xl prose-img:shadow-sm
                   "
                   style={{ direction: "rtl", textAlign: "right" }}
-                  dangerouslySetInnerHTML={{ __html: item.body }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(item.body) }}
                 />
 
                 {/* CTA */}

@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/input-validation.php';
 
 /** Authenticated CRUD QA layer for core Cloudways/MariaDB content. */
 
@@ -82,34 +83,14 @@ $snake = static function (string $value): string {
 $camel = static function (string $value): string {
     return preg_replace_callback('/_([a-z])/', static fn(array $match): string => strtoupper($match[1]), $value) ?? $value;
 };
-$normalizeContentRow = static function (array $row) use ($camel): array {
+$normalizeContentRow = static function (array $row) use ($camel, $resource): array {
+    if ($resource === 'employer-jobs' && ($row['status'] ?? '') === 'trash') $row['status'] = 'trashed';
     unset($row['password'], $row['reset_token'], $row['reset_token_expires']);
     $result = [];
     foreach ($row as $key => $value) {
-        if (is_string($value) && preg_match('/^-?[0-9]+$/', $value) === 1) $value = (int) $value;
         $result[$camel((string) $key)] = $value;
     }
     return $result;
-};
-$normalizeDeadlineMillis = static function ($value) {
-    if ($value === null || $value === '') return null;
-    if (is_int($value) || is_float($value) || (is_string($value) && ctype_digit(trim($value)))) {
-        return (int) $value;
-    }
-    $raw = trim((string) $value);
-    if ($raw === '') return null;
-    try {
-        $timezone = new DateTimeZone('Asia/Riyadh');
-        $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) === 1
-            ? DateTimeImmutable::createFromFormat('!Y-m-d', $raw, $timezone)
-            : new DateTimeImmutable($raw, $timezone);
-        if (!$date) return null;
-        // An expiry date remains valid through the selected calendar day.
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) === 1) $date = $date->setTime(23, 59, 59);
-        return $date->getTimestamp() * 1000;
-    } catch (Throwable $ignored) {
-        return null;
-    }
 };
 
 try {
@@ -158,14 +139,20 @@ try {
             $body = json_decode(file_get_contents('php://input') ?: '{}', true);
             $message = is_array($body) ? trim((string) ($body['message'] ?? '')) : '';
             if ($message === '') { $sendContentJson(400, ['message' => 'الرسالة مطلوبة']); return true; }
+            $pdo->beginTransaction();
+            $ticketCheck = $pdo->prepare('SELECT `id` FROM `support_tickets` WHERE `id` = ? FOR UPDATE');
+            $ticketCheck->execute([$id]);
+            if (!$ticketCheck->fetchColumn()) { $pdo->rollBack(); $sendContentJson(404, ['message' => 'التذكرة غير موجودة']); return true; }
             $now = (int) floor(microtime(true) * 1000);
             $replyStatement = $pdo->prepare('INSERT INTO `support_ticket_replies` (`ticket_id`, `sender_id`, `sender_type`, `message`, `created_at`) VALUES (?, ?, "admin", ?, ?)');
             $replyStatement->execute([$id, (int) ($payload['adminId'] ?? 0), $message, $now]);
             $replyId = (int) $pdo->lastInsertId();
-            $pdo->prepare('UPDATE `support_tickets` SET `status` = "in_progress", `last_admin_reply_at` = ?, `updated_at` = ? WHERE `id` = ?')->execute([$now, $now, $id]);
+            $pdo->prepare('UPDATE `support_tickets` SET `status` = "in_progress", `closed_at` = NULL, `last_admin_reply_at` = ?, `updated_at` = ? WHERE `id` = ?')->execute([$now, $now, $id]);
             $replyStatement = $pdo->prepare('SELECT * FROM `support_ticket_replies` WHERE `id` = ? LIMIT 1');
             $replyStatement->execute([$replyId]);
-            $sendContentJson(201, $normalizeContentRow($replyStatement->fetch()));
+            $reply = $replyStatement->fetch();
+            $pdo->commit();
+            $sendContentJson(201, $normalizeContentRow($reply));
             return true;
         }
         if ($method === 'PUT' && isset($parts[3]) && $parts[3] === 'status') {
@@ -212,7 +199,15 @@ try {
             $statement->execute([$id]); $row = $statement->fetch();
             $sendContentJson($row ? 200 : 404, $row ? $normalizeContentRow($row) : ['message' => 'Not found']);
         } else {
-            $rows = $pdo->query('SELECT * FROM `' . $table . '` ORDER BY `id` DESC')->fetchAll();
+            $where = ''; $parameters = [];
+            if (isset($columns['status'], $_GET['status']) && $_GET['status'] !== '' && $_GET['status'] !== 'all') {
+                if (!is_string($_GET['status'])) { $sendContentJson(400, ['message'=>'Invalid status']); return true; }
+                $statusFilter = $resource === 'employer-jobs' && $_GET['status'] === 'trashed' ? 'trash' : $_GET['status'];
+                $where = ' WHERE `status` = ?'; $parameters[] = $statusFilter;
+            }
+            $statement = $pdo->prepare('SELECT * FROM `' . $table . '`' . $where . ' ORDER BY `id` DESC');
+            $statement->execute($parameters);
+            $rows = $statement->fetchAll();
             $sendContentJson(200, array_map($normalizeContentRow, $rows));
         }
         return true;
@@ -224,8 +219,9 @@ try {
         $values = [];
         foreach ($body as $key => $value) {
             $column = $snake((string) $key);
+            if ($key !== $column && $key !== $camel($column)) { $sendContentJson(400, ['message'=>'Invalid field name']); return true; }
             if ($column === 'id' || !isset($columns[$column])) continue;
-            if ($column === 'deadline_date') $value = $normalizeDeadlineMillis($value);
+            if ($column === 'deadline_date') $value = alwdaifDeadlineMillis($value);
             if (is_bool($value)) $value = $value ? 1 : 0;
             if (is_array($value) || is_object($value)) $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $values[$column] = $value;
@@ -248,13 +244,14 @@ try {
         }
         $statement = $pdo->prepare('SELECT * FROM `' . $table . '` WHERE `id` = ? LIMIT 1');
         $statement->execute([$id]); $row = $statement->fetch();
+        if (!$row) { $sendContentJson(404, ['message' => 'Not found']); return true; }
         $sendContentJson($method === 'POST' ? 201 : 200, $normalizeContentRow($row));
         return true;
     }
 
     if ($method === 'DELETE') {
         if ($id === null) { $sendContentJson(400, ['message' => 'Missing id']); return true; }
-        if (!$isQaContent && (isset($columns['trashed_at']) || isset($columns['deleted_at']))) {
+        if (isset($columns['trashed_at']) || isset($columns['deleted_at'])) {
             $softDeleteColumn = isset($columns['trashed_at']) ? 'trashed_at' : 'deleted_at';
             $assignments = ['`' . $softDeleteColumn . '` = ?'];
             $parameters = [(int) floor(microtime(true) * 1000)];
@@ -273,7 +270,12 @@ try {
 
     $sendContentJson(405, ['message' => 'Method not allowed']);
     return true;
+} catch (InvalidArgumentException $error) {
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
+    $sendContentJson(400, ['message' => $error->getMessage()]);
+    return true;
 } catch (Throwable $error) {
+    if (isset($pdo) && $pdo->inTransaction()) $pdo->rollBack();
     error_log('Cloudways admin content error: ' . $error->getMessage());
     $sendContentJson(500, ['message' => 'تعذر إكمال العملية']);
     return true;

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Readiness sanitizer regression</title></head>
+<body><h1>Sanitizer regression — local fixtures only</h1><pre id="results">Running</pre>
+<script type="module">
+import { sanitizeHtml } from '../src/lib/sanitize.ts';
+const cases = [
+  ['Arabic formatting', '<p><strong>وظيفة جديدة</strong></p>', value => value.includes('<strong>وظيفة جديدة</strong>')],
+  ['Script', '<script>alert(1)<\/script><p>safe</p>', value => !value.includes('<script') && value.includes('safe')],
+  ['Event handler', '<img src="/fixture.png" onerror="alert(1)">', value => !value.includes('onerror')],
+  ['JavaScript link', '<a href="javascript:alert(1)">link</a>', value => !value.includes('javascript:')],
+  ['Mixed-case handler', '<img src=x oNeRrOr=alert(1)>', value => !value.toLowerCase().includes('onerror')],
+  ['SVG handler', '<svg onload=alert(1)><circle /></svg>', value => !value.includes('<svg')],
+  ['Iframe', '<iframe srcdoc="<script>alert(1)<\/script>"></iframe>', value => !value.includes('<iframe')],
+  ['CSS removed', '<p style="position:fixed">safe</p>', value => !value.includes('style=')],
+  ['Form removed', '<form action="https://example.invalid"><input name=password></form>', value => !value.includes('<form') && !value.includes('<input')],
+  ['Safe link', '<a href="https://example.com/jobs">apply</a>', value => value.includes('href="https://example.com/jobs"')],
+  ['Empty', '', value => value === ''],
+  ['Idempotent', '<p><img src=x onerror=alert(1)>safe</p>', value => sanitizeHtml(value) === value],
+];
+const results = cases.map(([name, input, check]) => ({name, pass:check(sanitizeHtml(input))}));
+document.querySelector('#results').textContent = JSON.stringify({passed:results.filter(r=>r.pass).length, total:results.length, results},null,2);
+if (results.some(r=>!r.pass)) throw new Error('Sanitizer regression failed');
+</script></body></html>

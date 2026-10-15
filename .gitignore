@@ -50,4 +50,4 @@ yarn-error.log*
 /cloudways/__pycache__/
 /application/**/dist/
 /application/**/.replit-artifact/
-/application/artifacts/api-server/
+/application/artifacts/api-server/uploads/

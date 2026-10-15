@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { completeUpload } from "@/lib/upload";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { Card, CardContent } from "@/components/ui/card";
@@ -150,12 +151,12 @@ export default function AdminMedia() {
         });
         if (!urlResponse.ok) throw new Error("Failed to get upload URL");
         const { uploadURL, objectPath } = await urlResponse.json();
-        await fetch(uploadURL, { method: "PUT", body: file, headers: { "Content-Type": file.type } });
+        const storedPath = await completeUpload(uploadURL, file, objectPath);
         await createMutation.mutateAsync({
           name: file.name.replace(/\.[^/.]+$/, ""),
           filename: file.name,
-          objectPath,
-          url: objectPath,
+          objectPath: storedPath,
+          url: storedPath,
           mimeType: file.type,
           size: file.size,
           category: isTrash ? "general" : activeTab,

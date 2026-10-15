@@ -19,7 +19,6 @@ $camelizeSearchKey = static function (string $value): string {
 $normalizeSearchRow = static function (array $row) use ($camelizeSearchKey): array {
     $result = [];
     foreach ($row as $key => $value) {
-        if (is_string($value) && preg_match('/^-?[0-9]+$/', $value) === 1) $value = (int) $value;
         $result[$camelizeSearchKey((string) $key)] = $value;
     }
     return $result;

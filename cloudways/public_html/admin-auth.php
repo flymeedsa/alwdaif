@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/auth-policy.php';
 
 /** Stateless Cloudways admin authentication, initially exposed under a QA prefix. */
 
@@ -66,12 +67,12 @@ try {
             return true;
         }
 
-        $statement = $pdo->prepare('SELECT * FROM `admins` WHERE (`email` = ? OR `username` = ?) AND `is_active` = 1 LIMIT 1');
+        $statement = $pdo->prepare('SELECT * FROM `admins` WHERE (`email` = ? OR `username` = ?) LIMIT 1');
         $statement->execute([$email, $email]);
         $admin = $statement->fetch();
         $adminId = null; $adminName = 'المشرف الرئيسي'; $valid = false;
-        if ($admin && !empty($admin['password'])) {
-            $valid = password_verify($password, (string) $admin['password']);
+        if ($admin) {
+            $valid = (int) $admin['is_active'] === 1 && !empty($admin['password']) && password_verify($password, (string) $admin['password']);
             $adminId = (int) $admin['id']; $adminName = (string) $admin['name'];
         } else {
             $settingsStatement = $pdo->prepare("SELECT `key`, `value` FROM `site_settings` WHERE `key` IN ('ADMIN_EMAIL', 'ADMIN_PASSWORD')");
@@ -89,13 +90,13 @@ try {
             return true;
         }
         @unlink($rateFile);
-        $token = $signToken(['adminId' => $adminId, 'adminName' => $adminName, 'expires' => time() + 604800]);
+        $token = $signToken(['adminId' => $adminId, 'adminName' => $adminName, 'nonce' => bin2hex(random_bytes(16)), 'expires' => time() + 604800]);
         $adminJson(200, ['success' => true, 'message' => 'Login successful', 'token' => $token]);
         return true;
     }
 
     if ($route === '/check-auth' && $method === 'GET') {
-        $adminJson(200, ['isAdmin' => $readToken() !== null]);
+        $adminJson(200, ['isAdmin' => alwdaifAdminIdentity($pdo, $config, (string) ($_SERVER['HTTP_X_ADMIN_TOKEN'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '')) !== null]);
         return true;
     }
     if ($route === '/me' && $method === 'GET') {
@@ -118,6 +119,7 @@ try {
         return true;
     }
     if ($route === '/logout' && $method === 'POST') {
+        alwdaifRevokeAdminToken($config, (string) ($_SERVER['HTTP_X_ADMIN_TOKEN'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? ''));
         $adminJson(200, ['success' => true, 'message' => 'Logged out']);
         return true;
     }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 /** Cloudways-native front controller. No production request leaves Cloudways. */
 
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
+if ((require __DIR__ . '/seo-handler.php') === true) exit;
+if ((require __DIR__ . '/admin-guard.php') === true) exit;
 $adminAuth = __DIR__ . '/admin-auth.php';
 if (is_file($adminAuth) && (require $adminAuth) === true) {
     exit;
@@ -80,6 +82,16 @@ if (!is_file($spaIndex)) {
     http_response_code(503);
     exit('Application release is not installed.');
 }
+// A React catch-all page must keep the HTTP 404 status, not return a soft 404.
+$knownRoute = false;
+$routeManifest = json_decode(file_get_contents(__DIR__ . '/frontend-routes.json'), true, 512, JSON_THROW_ON_ERROR);
+foreach ($routeManifest as $routePattern) {
+    $segments = explode('/', $routePattern);
+    $expression = implode('/', array_map(static fn(string $segment): string => str_starts_with($segment, ':') ? '[^/]+' : preg_quote($segment, '#'), $segments));
+    if (preg_match('#^' . $expression . '/?$#', $path)) { $knownRoute = true; break; }
+}
+if (!$knownRoute) http_response_code(404);
+if (preg_match('#^/(?:admin|dashboard|login)(?:/|$)#', $path) || !$knownRoute) header('X-Robots-Tag: noindex, nofollow');
 header('Content-Type: text/html; charset=utf-8');
 header('Cache-Control: no-cache, no-store, must-revalidate');
-if ($method !== 'HEAD') readfile($spaIndex);
+if ($method !== 'HEAD') echo str_replace('</head>', '<meta name="alwdaif-realtime" content="poll"></head>', file_get_contents($spaIndex));

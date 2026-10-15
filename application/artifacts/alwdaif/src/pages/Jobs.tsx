@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useRoute, useLocation } from "wouter";
+import { useRoute, useLocation, useSearch } from "wouter";
 import { Helmet } from "react-helmet";
 import Layout from "@/components/layout/Layout";
 import JobCard, { isJobClosed } from "@/components/JobCard";
@@ -12,9 +12,11 @@ import { Briefcase, Search, X, CheckCircle2, Lock } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Job, Organization } from "@shared/schema";
 import { usePageTitle } from "@/hooks/usePageTitle";
+import { sortJobs, type JobSort } from "@/lib/jobSorting";
 
 interface JobWithOrg extends Job {
   organization?: Organization | null;
+  isResult?: boolean;
 }
 
 
@@ -25,11 +27,13 @@ export default function Jobs() {
   const categoryParams = rawCategoryParams as { category?: string } | null;
   const companyParams = rawCompanyParams as { company?: string } | null;
   const [location, setLocation] = useLocation();
+  const searchString = useSearch();
 
   const routeCategory = categoryParams?.category;
   const company = companyParams?.company ? decodeURIComponent(companyParams.company) : undefined;
 
   const [visibleJobs, setVisibleJobs] = useState(12);
+  const [sortOrder, setSortOrder] = useState<JobSort>("newest");
   const [localSearch, setLocalSearch] = useState("");
   const [activeTab, setActiveTab] = useState<"open" | "closed">("open");
 
@@ -37,7 +41,7 @@ export default function Jobs() {
   const [urlCategory, setUrlCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(searchString);
     const searchValue = params.get("search");
     const categoryValue = params.get("category");
     setUrlSearchQuery(searchValue);
@@ -45,7 +49,7 @@ export default function Jobs() {
     setLocalSearch(searchValue || "");
     setVisibleJobs(12);
     setActiveTab("open");
-  }, [location]);
+  }, [location, searchString]);
 
   const activeCategory = urlCategory || (routeCategory && routeCategory !== "company" ? routeCategory : null) || "all";
 
@@ -56,11 +60,14 @@ export default function Jobs() {
     return `/api/jobs${params.toString() ? "?" + params.toString() : ""}`;
   }, []);
 
-  const { data: jobs = [], isLoading } = useQuery<JobWithOrg[]>({
+  const { data: jobs = [], isLoading, isError, refetch } = useQuery<JobWithOrg[]>({
     queryKey: ["/api/jobs", urlSearchQuery, activeCategory, company],
-    queryFn: () => {
-      if (company) return fetch(`/api/jobs`).then(r => r.json());
-      return fetch(buildApiUrl(urlSearchQuery, activeCategory)).then(r => r.json());
+    queryFn: async () => {
+      const response = await fetch(company ? "/api/jobs" : buildApiUrl(urlSearchQuery, activeCategory));
+      if (!response.ok) throw new Error(`Jobs request failed (${response.status})`);
+      const data: unknown = await response.json();
+      if (!Array.isArray(data)) throw new Error("Invalid jobs response");
+      return data;
     },
   });
 
@@ -71,7 +78,7 @@ export default function Jobs() {
   const openJobs = filteredJobs.filter(j => !isJobClosed(j));
   const closedJobs = filteredJobs.filter(j => isJobClosed(j));
 
-  const tabJobs = activeTab === "open" ? openJobs : closedJobs;
+  const tabJobs = sortJobs(activeTab === "open" ? openJobs : closedJobs, sortOrder);
   const displayedJobs = tabJobs.slice(0, visibleJobs);
 
   const handleSearch = () => {
@@ -242,7 +249,7 @@ export default function Jobs() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Label className="whitespace-nowrap hidden sm:block text-sm">الترتيب حسب:</Label>
-                  <Select defaultValue="newest">
+                  <Select value={sortOrder} onValueChange={(value) => { setSortOrder(value as JobSort); setVisibleJobs(12); }}>
                     <SelectTrigger className="w-[110px] sm:w-[140px]">
                       <SelectValue placeholder="الترتيب" />
                     </SelectTrigger>
@@ -262,7 +269,7 @@ export default function Jobs() {
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   <Label className="whitespace-nowrap hidden sm:block">الترتيب حسب:</Label>
-                  <Select defaultValue="newest">
+                  <Select value={sortOrder} onValueChange={(value) => { setSortOrder(value as JobSort); setVisibleJobs(12); }}>
                     <SelectTrigger className="w-[110px] sm:w-[140px]">
                       <SelectValue placeholder="الترتيب" />
                     </SelectTrigger>
@@ -275,7 +282,12 @@ export default function Jobs() {
               </div>
             )}
 
-            {isLoading ? (
+            {isError ? (
+              <div role="alert" className="text-center py-20 space-y-4">
+                <p>تعذر تحميل الوظائف. يرجى المحاولة مرة أخرى.</p>
+                <Button variant="outline" onClick={() => refetch()}>إعادة المحاولة</Button>
+              </div>
+            ) : isLoading ? (
               <div className="flex items-center justify-center py-20">
                 <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
               </div>
@@ -293,7 +305,7 @@ export default function Jobs() {
                 )}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {displayedJobs.map((job, index) => (
-                    <React.Fragment key={job.id}>
+                    <React.Fragment key={`${job.isResult ? "result" : "job"}-${job.id}`}>
                       <JobCard job={job} />
                     </React.Fragment>
                   ))}

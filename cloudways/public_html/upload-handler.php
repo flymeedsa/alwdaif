@@ -1,6 +1,7 @@
 <?php
 
 declare(strict_types=1);
+require_once __DIR__ . '/auth-policy.php';
 
 /** Local, application-scoped upload storage for the Cloudways migration. */
 
@@ -25,23 +26,24 @@ $sendUploadJson = static function (int $status, array $payload): void {
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 };
 
-$validateAdmin = static function (): bool {
+$isUploadWrite = ($uploadMethod === 'POST' && in_array($uploadPath, ['/api/admin/upload', '/api/media/upload', '/api/uploads/request-url'], true))
+    || ($uploadMethod === 'PUT' && preg_match('#^/api/uploads/(?:local|r2)/[^/]+$#', $uploadPath));
+if ($isUploadWrite) {
+    $header = (string) ($_SERVER['HTTP_X_ADMIN_TOKEN'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '');
+    $memberToken = trim((string) ($_SERVER['HTTP_X_COMMUNITY_TOKEN'] ?? ''));
+    if (trim($header) === '' && $memberToken === '') { $sendUploadJson(401, ['message'=>'غير مصرح']); return true; }
     try {
         $config = require dirname(__DIR__) . '/private_html/alwdaif-migration-config.php';
-        $header = $_SERVER['HTTP_X_ADMIN_TOKEN'] ?? ($_SERVER['HTTP_AUTHORIZATION'] ?? '');
-        $token = preg_replace('/^Bearer\s+/i', '', trim((string) $header));
-        if (!$token || strpos($token, '.') === false) return false;
-        [$payloadPart, $signaturePart] = explode('.', $token, 2);
-        $decode = static fn(string $value): string => (string) base64_decode(strtr($value, '-_', '+/'), true);
-        $provided = $decode($signaturePart);
-        $expected = hash_hmac('sha256', $payloadPart, $config['token'], true);
-        $payload = json_decode($decode($payloadPart), true);
-        return hash_equals($expected, $provided) && is_array($payload) && (int) ($payload['expires'] ?? 0) >= time();
+        $uploadPdo = new PDO(sprintf('mysql:host=%s;port=%d;dbname=%s;charset=utf8mb4', $config['host'],$config['port'],$config['database']),$config['username'],$config['password'],[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+        $uploadAdmin = alwdaifAdminIdentity($uploadPdo, $config, $header);
+        $uploadMember = $uploadPath === '/api/admin/upload' ? null : alwdaifMemberIdentity($uploadPdo, $memberToken);
+        if (!$uploadAdmin && !$uploadMember) { $sendUploadJson(401, ['message'=>'غير مصرح']); return true; }
+        if ($uploadAdmin && !alwdaifAdminMayUpload($uploadAdmin)) { $sendUploadJson(403, ['message'=>'Forbidden']); return true; }
     } catch (Throwable $error) {
         error_log('Cloudways upload auth error: ' . $error->getMessage());
-        return false;
+        $sendUploadJson(503, ['message'=>'تعذر التحقق من الصلاحيات']); return true;
     }
-};
+}
 
 $storeUpload = static function (string $temporaryFile, int $size) use ($uploadRoot, $maxUploadBytes, $allowedUploadTypes): array {
     if ($size < 1 || $size > $maxUploadBytes || !is_file($temporaryFile)) {
@@ -67,10 +69,6 @@ $storeUpload = static function (string $temporaryFile, int $size) use ($uploadRo
 };
 
 if ($uploadMethod === 'POST' && ($uploadPath === '/api/admin/upload' || $uploadPath === '/api/media/upload')) {
-    if ($uploadPath === '/api/admin/upload' && !$validateAdmin()) {
-        $sendUploadJson(401, ['message' => 'غير مصرح']);
-        return true;
-    }
     if (!isset($_FILES['file']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
         $sendUploadJson(400, ['message' => 'لم يتم إرفاق ملف صالح']);
         return true;

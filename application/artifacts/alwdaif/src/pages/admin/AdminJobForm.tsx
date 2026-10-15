@@ -134,6 +134,7 @@ export default function AdminJobForm() {
           ...data,
           description: sanitizeHtml(data.description),
           organizationId: data.organizationId ? parseInt(data.organizationId) : null,
+          // Keep the calendar value date-only; the API pins it to a stable UTC day.
           deadlineDate: data.deadlineDate || null,
         }),
         credentials: "include",
@@ -163,6 +164,7 @@ export default function AdminJobForm() {
           ...data,
           description: sanitizeHtml(data.description),
           organizationId: data.organizationId ? parseInt(data.organizationId) : null,
+          // Keep the calendar value date-only; the API pins it to a stable UTC day.
           deadlineDate: data.deadlineDate || null,
         }),
         credentials: "include",

@@ -20,16 +20,28 @@ export function clearAdminToken(): void {
   } catch {}
 }
 
+function isLocalAdminRequest(input: RequestInfo | URL): boolean {
+  const value = input instanceof Request ? input.url : String(input);
+  const url = new URL(value, window.location.href);
+  return url.origin === window.location.origin && (url.pathname.startsWith("/api/admin/") || isUploadPath(url.pathname));
+}
+
+function isUploadPath(path: string): boolean {
+  return path === "/api/media/upload" || path === "/api/uploads/request-url" || /^\/api\/uploads\/(local|r2)\/[^/]+$/.test(path);
+}
+
+function requestHeaders(input: RequestInfo | URL, init?: RequestInit): Headers {
+  return new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+}
+
 /**
  * A fetch wrapper that automatically adds the admin token header.
  */
 export function adminFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const token = getAdminToken();
-  const headers: Record<string, string> = {
-    ...(init?.headers as Record<string, string> || {}),
-  };
-  if (token) {
-    headers["x-admin-token"] = token;
+  const headers = requestHeaders(input, init);
+  if (token && isLocalAdminRequest(input)) {
+    headers.set("x-admin-token", token);
   }
   return fetch(input, { credentials: "include", ...init, headers });
 }
@@ -41,14 +53,19 @@ export function adminFetch(input: RequestInfo | URL, init?: RequestInit): Promis
 export function setupAdminFetchInterceptor(): void {
   const originalFetch = window.fetch.bind(window);
   window.fetch = function patchedFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : (input as Request).url;
-    if (url.includes("/api/admin/")) {
+    if (isLocalAdminRequest(input)) {
       const token = getAdminToken();
-      if (token) {
-        const headers = new Headers((init?.headers as HeadersInit) || {});
-        if (!headers.has("x-admin-token")) {
+      const requestUrl = new URL(input instanceof Request ? input.url : String(input), window.location.href);
+      let communityToken: string | null = null;
+      if (isUploadPath(requestUrl.pathname)) {
+        try { communityToken = localStorage.getItem("communityToken"); } catch { /* Storage may be unavailable. */ }
+      }
+      if (token || communityToken) {
+        const headers = requestHeaders(input, init);
+        if (token && !headers.has("x-admin-token")) {
           headers.set("x-admin-token", token);
         }
+        if (communityToken && !headers.has("x-community-token")) headers.set("x-community-token", communityToken);
         return originalFetch(input, { credentials: "include", ...init, headers });
       }
     }

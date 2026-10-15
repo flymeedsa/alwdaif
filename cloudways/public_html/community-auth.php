@@ -20,7 +20,6 @@ $communityMember = static function (array $member): array {
     unset($member['password']);
     $result = [];
     foreach ($member as $key => $value) {
-        if (is_string($value) && preg_match('/^-?[0-9]+$/', $value) === 1) $value = (int) $value;
         $camel = preg_replace_callback('/_([a-z])/', static fn(array $match): string => strtoupper($match[1]), (string) $key) ?? $key;
         $result[$camel] = $value;
     }

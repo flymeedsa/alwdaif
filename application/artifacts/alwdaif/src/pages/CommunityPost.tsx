@@ -1,3 +1,4 @@
+import { sanitizeHtml } from "@/lib/sanitize";
 import { formatTimeAgo } from "@/lib/formatDate";
 import { Helmet } from "react-helmet";
 import Layout from "@/components/layout/Layout";
@@ -492,7 +493,7 @@ export default function CommunityPost() {
                   <div
                     className="prose dark:prose-invert max-w-none text-foreground/80 leading-relaxed"
                     dir="rtl"
-                    dangerouslySetInnerHTML={{ __html: post.content }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeHtml(post.content) }}
                   />
                 </div>
 

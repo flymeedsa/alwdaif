@@ -39,6 +39,7 @@ const SEARCH_CATEGORIES = [
 ];
 interface JobWithOrg extends Job {
   organization?: Organization | null;
+  isResult?: boolean;
 }
 
 interface HomepageSettings {
@@ -343,7 +344,7 @@ export default function Home() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {featuredJobs.filter(j => !isJobClosed(j)).slice(0, featuredCount).map((job) => (
-                      <JobCard key={job.id} job={job} variant="featured" />
+                      <JobCard key={`${job.isResult ? "result" : "job"}-${job.id}`} job={job} variant="featured" />
                     ))}
                   </div>
                 </div>
@@ -372,7 +373,7 @@ export default function Home() {
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {jobs.filter(j => !isJobClosed(j)).slice(0, latestCount).map((job) => (
-                          <JobCard key={job.id} job={job} />
+                          <JobCard key={`${job.isResult ? "result" : "job"}-${job.id}`} job={job} />
                         ))}
                       </div>
                       <div className="mt-8 flex justify-center">
@@ -510,9 +511,9 @@ export default function Home() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           {Array.from(new Map(jobs.filter(j => j.organizationId || j.company).map(j => [j.organizationId || j.company, j])).entries())
                             .slice(0, 6)
-                            .map(([_, job]) => (
+                            .map(([organizationKey, job]) => (
                               <OrgActionCard
-                                key={job.id}
+                                key={organizationKey}
                                 org={job.organization || null}
                                 jobCompany={job.company}
                                 jobLogo={job.logo || null}

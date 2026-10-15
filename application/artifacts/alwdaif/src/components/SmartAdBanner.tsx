@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { supportsRealtimeSocket } from '@/lib/realtime';
 import { useLocation } from "wouter";
 import {
   ArrowLeft, Megaphone,
@@ -133,6 +134,7 @@ export default function SmartAdBanner() {
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
     const connect = () => {
+      if (!supportsRealtimeSocket()) return;
       ws = new WebSocket(wsUrl);
       ws.onmessage = (event) => {
         try {
@@ -148,6 +150,7 @@ export default function SmartAdBanner() {
 
     return () => {
       clearInterval(poll);
+      if (ws) ws.onclose = null;
       ws?.close();
       if (reconnectTimer) clearTimeout(reconnectTimer);
     };

@@ -519,7 +519,7 @@ export default function AdminEmployerJobs() {
             <TabsTrigger value="open" data-testid="tab-open" className="gap-1.5">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
               مفتوحة
-              {activeTab !== "open" && (
+              {apiStatus === "published" && activeTab !== "open" && (
                 <span className="text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full px-1.5 py-0.5 font-medium">
                   {allJobs.filter((j: any) => !isJobClosed(j)).length}
                 </span>
@@ -528,7 +528,7 @@ export default function AdminEmployerJobs() {
             <TabsTrigger value="closed" data-testid="tab-closed" className="gap-1.5">
               <Lock className="h-3.5 w-3.5 text-gray-400" />
               مغلقة
-              {activeTab !== "closed" && (
+              {apiStatus === "published" && activeTab !== "closed" && (
                 <span className="text-xs bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 rounded-full px-1.5 py-0.5 font-medium">
                   {allJobs.filter((j: any) => isJobClosed(j)).length}
                 </span>

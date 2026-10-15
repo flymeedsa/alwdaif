@@ -6,7 +6,8 @@ const OLD_SEEDED_RESULT_IDS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 export async function migrateMissingData(): Promise<void> {
   try {
-    await cleanupOldResults();
+    // Do not delete results by numeric ID. New owner-managed records can reuse
+    // the IDs that belonged to the legacy seed data.
     await migrateSiteSettings();
     console.log("[migrate] Data sync complete.");
   } catch (err) {

@@ -1530,16 +1530,27 @@ ${itemsXml}
     }
   });
 
+  const normalizeDeadlineDate = (value: unknown): Date | null => {
+    if (value === undefined || value === null || value === "") return null;
+    if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+    if (typeof value !== "string") return null;
+    const raw = value.trim();
+    if (!raw) return null;
+    // Date-picker values are date-only. Pin them to noon UTC so the selected
+    // calendar day is stable across Riyadh, UTC, and other server time zones.
+    const candidate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+      ? new Date(`${raw}T12:00:00.000Z`)
+      : new Date(raw);
+    return isNaN(candidate.getTime()) ? null : candidate;
+  };
+
   app.post("/api/admin/jobs", isAdminSession, async (req, res) => {
     try {
       // Normalize deadlineDate before Zod parse: Drizzle timestamp expects Date or null, not a string
       let body = { ...req.body };
       if (!body.deadlineDate || body.deadlineDate === "") {
         body.deadlineDate = null;
-      } else if (typeof body.deadlineDate === "string") {
-        const d = new Date(body.deadlineDate + "T00:00:00");
-        body.deadlineDate = isNaN(d.getTime()) ? null : d;
-      }
+      } else body.deadlineDate = normalizeDeadlineDate(body.deadlineDate);
 
       const parsed = insertJobSchema.safeParse(body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid job data", errors: parsed.error.errors });
@@ -1708,10 +1719,7 @@ ${itemsXml}
       // Normalize deadlineDate: convert "YYYY-MM-DD" string to Date, or null if empty/invalid
       if (jobData.deadlineDate === "" || jobData.deadlineDate === undefined) {
         jobData = { ...jobData, deadlineDate: null };
-      } else if (typeof jobData.deadlineDate === "string") {
-        const d = new Date(jobData.deadlineDate + "T00:00:00");
-        jobData = { ...jobData, deadlineDate: isNaN(d.getTime()) ? null : d };
-      }
+      } else jobData = { ...jobData, deadlineDate: normalizeDeadlineDate(jobData.deadlineDate) };
 
       // Handle featured jobs limit (max 4)
       if (jobData.isFeatured) {

@@ -24,15 +24,16 @@ if ($openAiLine -and $openAiLine -match '^\s*OPENAI_API_KEY\s*=\s*(.+?)\s*$') {
 New-Item -ItemType Directory -Path $runtimeDir -Force | Out-Null
 
 $env:PGHOST = "127.0.0.1"
-$env:PGPORT = "55432"
+$env:PGPORT = "55433"
 $env:PGUSER = "postgres"
-$env:DATABASE_URL = "postgresql://postgres@127.0.0.1:55432/alwdaif"
+$env:DATABASE_URL = "postgresql://postgres@127.0.0.1:55433/alwdaif"
 $env:PORT = "5000"
 $env:SESSION_SECRET = "local-session-only-change-before-public-deployment"
 $env:SESSION_COOKIE_SECURE = "false"
 $env:SITE_URL = "http://alwdaif.localhost:22860"
-$env:NODE_ENV = "production"
+$env:NODE_ENV = "development"
 $env:RUN_BACKGROUND_JOBS = "false"
+$env:SKIP_STARTUP_DATA_MUTATIONS = "true"
 $env:LOCAL_OBJECT_DIR = Join-Path $runtimeDir "objects"
 $env:NODE_PATH = $nativeModules
 $env:ESBUILD_BINARY_PATH = Join-Path $nativeModules "@esbuild\win32-x64\esbuild.exe"
@@ -40,7 +41,7 @@ $env:Path = "$(Split-Path $nodeExe);$(Split-Path $pnpmExe);$env:Path"
 
 & (Join-Path $postgresBin "pg_isready.exe") -d alwdaif -q
 if ($LASTEXITCODE -ne 0) {
-  & (Join-Path $postgresBin "pg_ctl.exe") -D $postgresData -l $postgresLog -o '"-p 55432 -h 127.0.0.1"' -w start
+  & (Join-Path $postgresBin "pg_ctl.exe") -D $postgresData -l $postgresLog -o '-p 55433 -h 127.0.0.1' -w start
   if ($LASTEXITCODE -ne 0) { throw "PostgreSQL failed to start" }
 }
 

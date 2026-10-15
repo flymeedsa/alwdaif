@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { completeUpload } from "@/lib/upload";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -74,17 +75,13 @@ export default function MediaPicker({ value, onChange, placeholder = "اختر �
       if (!urlResponse.ok) throw new Error("Failed to get upload URL");
       const { uploadURL, objectPath } = await urlResponse.json();
 
-      await fetch(uploadURL, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      });
+      const storedPath = await completeUpload(uploadURL, file, objectPath);
 
       const created = await createMutation.mutateAsync({
         name: file.name.replace(/\.[^/.]+$/, ""),
         filename: file.name,
-        objectPath: objectPath,
-        url: objectPath,
+        objectPath: storedPath,
+        url: storedPath,
         mimeType: file.type,
         size: file.size,
       });
